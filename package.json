@@ -4,7 +4,10 @@
   "description": "Multi-provider AI coding agent desktop app",
   "type": "module",
   "main": "dist/main/index.js",
-  "author": "",
+  "author": {
+    "name": "Verry",
+    "email": "34811528+verrysimatupang99@users.noreply.github.com"
+  },
   "license": "MIT",
   "scripts": {
     "dev": "vite",
