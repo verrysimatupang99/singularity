@@ -108,3 +108,39 @@ export class CancelledError extends Error {
     this.name = 'CancelledError'
   }
 }
+
+// ---------------------------------------------------------------------------
+// Agent Tools (Phase 6)
+// ---------------------------------------------------------------------------
+
+export interface AgentTool {
+  name: string
+  description: string
+  parameters: Record<string, unknown>
+  requiresApproval: boolean
+}
+
+export interface AgentToolCall {
+  toolName: string
+  args: Record<string, unknown>
+  requiresApproval: boolean
+}
+
+export interface AgentToolResult {
+  toolName: string
+  output: string
+  error?: string
+  approved: boolean
+}
+
+export type AgentEventType = 'thinking' | 'tool_call' | 'approval_needed' | 'tool_result' | 'done' | 'error'
+
+export interface AgentEvent {
+  agentId: string
+  step: number
+  type: AgentEventType
+  toolCall?: AgentToolCall
+  result?: AgentToolResult
+  finalResponse?: string
+  error?: string
+}

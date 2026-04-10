@@ -1,5 +1,5 @@
 import { useLayout } from '../context/LayoutContext'
-import { FolderOpen, MessageSquare, Wrench, Settings } from 'lucide-react'
+import { FolderOpen, MessageSquare, Wrench, Settings, Search, Bot } from 'lucide-react'
 
 export default function ActivityBar() {
   const { panels, togglePanel, workspaceRoot, setWorkspaceRoot } = useLayout()
@@ -22,7 +22,9 @@ export default function ActivityBar() {
       action: handleFolderOpen,
       panel: 'fileTree' as const,
     },
+    { icon: Search, label: 'Search', panel: 'search' as const },
     { icon: MessageSquare, label: 'Chat', panel: 'chat' as const },
+    { icon: Bot, label: 'Agent', panel: 'agent' as const },
     { icon: Wrench, label: 'MCP Tools', action: () => togglePanel('sidebar' as any) },
   ]
 

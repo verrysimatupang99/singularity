@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { ChatMessage, Session, ToolCall, Attachment } from '../types'
 import MessageBubble from './MessageBubble'
+import ContextMeter from './ContextMeter'
 
 interface ChatViewProps {
   session: Session | null
@@ -14,6 +15,7 @@ interface ChatViewProps {
   onExportSuccess?: (path: string) => void
   initialMessage?: string
   onMessageSent?: () => void
+  contextWindow?: number
 }
 
 export default function ChatView({
@@ -28,6 +30,7 @@ export default function ChatView({
   onExportSuccess,
   initialMessage,
   onMessageSent,
+  contextWindow,
 }: ChatViewProps) {
   const [input, setInput] = useState('')
   const [attachments, setAttachments] = useState<Attachment[]>([])
@@ -320,6 +323,9 @@ export default function ChatView({
           </div>
         )}
       </div>
+
+      {/* Context Meter */}
+      {contextWindow && <ContextMeter messages={messages} contextWindow={contextWindow} modelName="" />}
 
       {/* Messages */}
       <div

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Session, ChatMessage, ProviderInfo, PROVIDERS, ToolCall, StreamChunk, Attachment } from './types'
 import { useLayout } from './context/LayoutContext'
 import Sidebar from './components/Sidebar'
@@ -7,10 +7,12 @@ import SettingsView from './components/SettingsView'
 import ToolCallInspector from './components/ToolCallInspector'
 import ActivityBar from './components/ActivityBar'
 import FileTree from './components/FileTree'
+import SearchPanel from './components/SearchPanel'
 import ResizableDivider from './components/ResizableDivider'
 import EditorTabBar from './components/EditorTabBar'
 import CodeEditor from './components/CodeEditor'
 import TerminalPanel from './components/TerminalPanel'
+import AgentView from './components/AgentView'
 
 type View = 'chat' | 'settings'
 
@@ -349,6 +351,15 @@ export default function App() {
   const activeSession = sessions.find((s) => s.id === activeSessionId) || null
   const pendingToolCallCount = toolCalls.filter((t) => t.status === 'pending').length
 
+  // Compute context window for the active session
+  const contextWindow = useMemo(() => {
+    if (!activeSession) return undefined
+    const providerInfo = providers.find((p) => p.id === activeSession.provider)
+    if (!providerInfo) return undefined
+    const modelInfo = providerInfo.models.find((m) => m.id === activeSession.model)
+    return modelInfo?.contextWindow
+  }, [activeSession, providers])
+
   // Layout context
   const {
     panels,
@@ -414,12 +425,37 @@ export default function App() {
             </>
           )}
 
+          {/* Search Panel */}
+          {panels.search.open && (
+            <>
+              <div style={{ width: panels.search.width, flexShrink: 0, overflow: 'hidden', borderRight: '1px solid #21262d' }}>
+                <SearchPanel />
+              </div>
+              <ResizableDivider direction="vertical" onResize={(d) => setPanelWidth('search', panels.search.width + d)} />
+            </>
+          )}
+
+          {/* Agent Panel */}
+          {panels.agent.open && (
+            <>
+              <div style={{ width: panels.agent.width, flexShrink: 0, overflow: 'hidden', borderRight: '1px solid #21262d' }}>
+                <AgentView workspaceRoot={workspaceRoot} />
+              </div>
+              <ResizableDivider direction="vertical" onResize={(d) => setPanelWidth('agent', panels.agent.width + d)} />
+            </>
+          )}
+
           {/* Center: Editor if file open, otherwise Chat or Settings */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
             {panels.editor.open && activeFile ? (
               <>
                 <EditorTabBar />
-                <CodeEditor filePath={activeFile} onAskAI={handleEditorAskAI} />
+                <CodeEditor
+                  filePath={activeFile}
+                  provider={activeSession?.provider || settings?.defaultProvider || 'openai'}
+                  model={activeSession?.model || settings?.defaultModel || 'gpt-4'}
+                  onAskAI={handleEditorAskAI}
+                />
               </>
             ) : currentView === 'chat' ? (
               <ChatView
@@ -433,6 +469,7 @@ export default function App() {
                 activeToolCalls={toolCalls}
                 initialMessage={pendingChatMessage}
                 onMessageSent={() => setPendingChatMessage('')}
+                contextWindow={contextWindow}
               />
             ) : (
               <SettingsView
@@ -463,6 +500,7 @@ export default function App() {
                     activeToolCalls={toolCalls}
                     initialMessage={pendingChatMessage}
                     onMessageSent={() => setPendingChatMessage('')}
+                    contextWindow={contextWindow}
                   />
                 ) : (
                   <SettingsView

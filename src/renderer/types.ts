@@ -285,7 +285,9 @@ declare global {
       isSecureMode: () => Promise<boolean>
 
       // AI Diff Apply (TASK 5)
-      aiApplyDiff: (filePath: string, diff: string) => Promise<{ success: boolean; error?: string }>
+      aiApplyDiff: (filePath: string, diff: string) => Promise<{ success: boolean; linesChanged?: { added: number; removed: number }; error?: string }>
+      aiPreviewDiff: (filePath: string, diff: string) => Promise<{ filePath?: string; hunks?: unknown[]; originalLines?: number; totalAdded?: number; totalRemoved?: number; original?: string; error?: string }>
+      aiGenerateDiff: (filePath: string, newContent: string) => Promise<{ success: boolean; diff?: string; error?: string }>
 
       // File operations (TASK 2)
       filePick: () => Promise<string[]>
@@ -294,6 +296,7 @@ declare global {
       fsReadDir: (dirPath: string) => Promise<Array<{ name: string; path: string; type: 'dir' | 'file'; size: number; ext: string }>>
       fsReadFile: (filePath: string) => Promise<string>
       fsWriteFile: (filePath: string, content: string) => Promise<{ success: boolean }>
+      fsSearch: (pattern: string, directory: string, options: { caseSensitive: boolean; useRegex: boolean; filePattern?: string }) => Promise<Array<{ file: string; line: number; content: string }>>
 
       // Gemini credential import (TASK 5b)
       authImportGeminiCreds: () => Promise<{ success: boolean; error?: string }>
@@ -305,6 +308,11 @@ declare global {
       terminalKill: (termId: string) => Promise<{ ok: boolean }>
       onTerminalData: (cb: (data: { termId: string; data: string }) => void) => () => void
       onTerminalExit: (cb: (data: { termId: string; exitCode: number }) => void) => () => void
+
+      // Agent (Phase 6 - TASK 3)
+      agentExecuteTask: (opts: { task: string; workspaceRoot: string; provider: string; model: string }) => Promise<{ agentId: string }>
+      agentApprove: (opts: { agentId: string; approved: boolean }) => Promise<{ ok: boolean }>
+      onAgentEvent: (cb: (event: unknown) => void) => () => void
     }
     platform: string
   }

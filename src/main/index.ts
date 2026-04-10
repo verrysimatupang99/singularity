@@ -21,6 +21,8 @@ import {
 import { CliSessionManager, CliError } from './services/cliSessionManager.js'
 import { McpManager } from './services/mcpManager.js'
 import { initProviders, registry } from './providers/index.js'
+import { applyUnifiedDiff, countDiffLines, parseDiffHunks, generateUnifiedDiff } from './utils/diff.js'
+import { runAgentLoop, approveAgent } from './services/agentRunner.js'
 import {
   githubDeviceAuth,
   githubPoll,
@@ -862,8 +864,45 @@ ipcMain.handle('security:isSecureMode', () => {
 // ---------------------------------------------------------------------------
 
 ipcMain.handle('ai:applyDiff', async (_event, { filePath, diff }: { filePath: string; diff: string }) => {
-  // TODO: Phase 6 - parse unified diff, apply to file
-  return { success: false, error: 'Not implemented yet - planned for Phase 6' }
+  const { readFileSync, writeFileSync } = await import('fs')
+  try {
+    const original = readFileSync(filePath, 'utf8')
+    const applied = applyUnifiedDiff(original, diff)
+    writeFileSync(filePath, applied, 'utf8')
+    const lines = countDiffLines(diff)
+    return { success: true, linesChanged: lines }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : String(err) }
+  }
+})
+
+ipcMain.handle('ai:previewDiff', async (_event, { filePath, diff }: { filePath: string; diff: string }) => {
+  const { readFileSync } = await import('fs')
+  try {
+    const original = readFileSync(filePath, 'utf8')
+    const hunks = parseDiffHunks(diff)
+    return {
+      filePath,
+      hunks,
+      originalLines: original.split('\n').length,
+      totalAdded: hunks.reduce((sum, h) => sum + h.additions, 0),
+      totalRemoved: hunks.reduce((sum, h) => sum + h.deletions, 0),
+      original,
+    }
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) }
+  }
+})
+
+ipcMain.handle('ai:generateDiff', async (_event, { filePath, newContent }: { filePath: string; newContent: string }) => {
+  const { readFileSync } = await import('fs')
+  try {
+    const original = readFileSync(filePath, 'utf8')
+    const diff = generateUnifiedDiff(filePath, filePath, original, newContent)
+    return { success: true, diff }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : String(err) }
+  }
 })
 
 // ---------------------------------------------------------------------------
@@ -932,6 +971,56 @@ ipcMain.handle('fs:writeFile', async (_event, { filePath, content }: { filePath:
   mkdirSync(dirname(filePath), { recursive: true })
   writeFileSync(filePath, content, 'utf8')
   return { success: true }
+})
+
+// fs:search — search across files using ripgrep or grep
+ipcMain.handle('fs:search', async (_event, {
+  pattern, directory, options,
+}: {
+  pattern: string
+  directory: string
+  options: { caseSensitive: boolean; useRegex: boolean; filePattern?: string }
+}) => {
+  const { execSync } = await import('child_process')
+  const { existsSync } = await import('fs')
+
+  if (!existsSync(directory)) return []
+
+  const rgAvailable = (() => {
+    try { execSync('rg --version', { timeout: 1000 }); return true }
+    catch { return false }
+  })()
+
+  const flags = [
+    '--line-number',
+    '--with-filename',
+    '--no-heading',
+    options.caseSensitive ? '' : '--ignore-case',
+    options.useRegex ? '' : '--fixed-strings',
+    options.filePattern ? `--glob '${options.filePattern}'` : '',
+    '--glob !node_modules',
+    '--glob !.git',
+    '--glob !dist',
+    '--glob !build',
+    pattern,
+    directory,
+  ].filter(Boolean)
+
+  try {
+    const cmd = rgAvailable ? `rg ${flags.join(' ')}` : `grep -rn ${flags.join(' ')}`
+    const output = execSync(cmd, { timeout: 10000, maxBuffer: 10 * 1024 * 1024 }).toString()
+
+    return output.trim().split('\n').filter(Boolean).map((line) => {
+      const parts = line.split(':')
+      return {
+        file: parts[0]?.trim() || '',
+        line: parseInt(parts[1] || '0'),
+        content: parts.slice(2).join(':').trim(),
+      }
+    }).slice(0, 500)
+  } catch {
+    return []
+  }
 })
 
 ipcMain.handle('file:pick', async () => {
@@ -1091,6 +1180,23 @@ ipcMain.handle('terminal:kill', (_event, termId: string) => {
     term.kill()
     terminals.delete(termId)
   }
+  return { ok: true }
+})
+
+// ---------------------------------------------------------------------------
+// Agent (Phase 6 - TASK 3)
+// ---------------------------------------------------------------------------
+
+ipcMain.handle('agent:executeTask', async (_event, { task, workspaceRoot, provider, model }: { task: string; workspaceRoot: string; provider: string; model: string }) => {
+  const agentId = `agent_${Date.now()}`
+  ;(async () => {
+    await runAgentLoop({ agentId, task, workspaceRoot, provider, model, onEvent: (event) => mainWindow?.webContents.send('agent:event', event) })
+  })()
+  return { agentId }
+})
+
+ipcMain.handle('agent:approve', (_event, { agentId, approved }: { agentId: string; approved: boolean }) => {
+  approveAgent(agentId, approved)
   return { ok: true }
 })
 

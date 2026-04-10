@@ -153,6 +153,10 @@ contextBridge.exposeInMainWorld('api', {
   // AI Diff Apply (TASK 5)
   aiApplyDiff: (filePath: string, diff: string) =>
     ipcRenderer.invoke('ai:applyDiff', { filePath, diff }),
+  aiPreviewDiff: (filePath: string, diff: string) =>
+    ipcRenderer.invoke('ai:previewDiff', { filePath, diff }),
+  aiGenerateDiff: (filePath: string, newContent: string) =>
+    ipcRenderer.invoke('ai:generateDiff', { filePath, newContent }),
 
   // File operations (TASK 2)
   filePick: () => ipcRenderer.invoke('file:pick'),
@@ -161,6 +165,8 @@ contextBridge.exposeInMainWorld('api', {
   fsReadDir: (dirPath: string) => ipcRenderer.invoke('fs:readDir', dirPath),
   fsReadFile: (filePath: string) => ipcRenderer.invoke('fs:readFile', filePath),
   fsWriteFile: (filePath: string, content: string) => ipcRenderer.invoke('fs:writeFile', { filePath, content }),
+  fsSearch: (pattern: string, directory: string, options: { caseSensitive: boolean; useRegex: boolean; filePattern?: string }) =>
+    ipcRenderer.invoke('fs:search', { pattern, directory, options }),
 
   // Gemini credential import (TASK 5b)
   authImportGeminiCreds: () => ipcRenderer.invoke('auth:import-gemini-creds'),
@@ -183,6 +189,17 @@ contextBridge.exposeInMainWorld('api', {
     const listener = (_event: unknown, d: { termId: string; exitCode: number }) => cb(d)
     ipcRenderer.on('terminal:exit', listener)
     return () => ipcRenderer.removeListener('terminal:exit', listener)
+  },
+
+  // Agent (Phase 6 - TASK 3)
+  agentExecuteTask: (opts: { task: string; workspaceRoot: string; provider: string; model: string }) =>
+    ipcRenderer.invoke('agent:executeTask', opts),
+  agentApprove: (opts: { agentId: string; approved: boolean }) =>
+    ipcRenderer.invoke('agent:approve', opts),
+  onAgentEvent: (cb: (event: unknown) => void) => {
+    const listener = (_event: unknown, data: unknown) => cb(data)
+    ipcRenderer.on('agent:event', listener)
+    return () => ipcRenderer.removeListener('agent:event', listener)
   },
 })
 

@@ -3,17 +3,21 @@ import { createContext, useContext, useReducer, useCallback, useEffect, type Rea
 export interface PanelState {
   sidebar: { open: boolean; width: number }
   fileTree: { open: boolean; width: number }
+  search: { open: boolean; width: number }
   editor: { open: boolean }
   chat: { open: boolean; width: number }
   terminal: { open: boolean; height: number }
+  agent: { open: boolean; width: number }
 }
 
 const DEFAULT_PANELS: PanelState = {
   sidebar: { open: true, width: 260 },
   fileTree: { open: false, width: 240 },
+  search: { open: false, width: 240 },
   editor: { open: false },
   chat: { open: true, width: 420 },
   terminal: { open: false, height: 240 },
+  agent: { open: false, width: 420 },
 }
 
 interface LayoutState {
@@ -103,7 +107,7 @@ function layoutReducer(state: LayoutState, action: LayoutAction): LayoutState {
 export interface LayoutContextType {
   panels: PanelState
   togglePanel: (panel: keyof PanelState) => void
-  setPanelWidth: (panel: 'sidebar' | 'fileTree' | 'chat', width: number) => void
+  setPanelWidth: (panel: 'sidebar' | 'fileTree' | 'search' | 'chat', width: number) => void
   setTerminalHeight: (height: number) => void
   activeFile: string | null
   setActiveFile: (path: string | null) => void
@@ -133,7 +137,7 @@ export function LayoutProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'TOGGLE_PANEL', panel })
   }, [])
 
-  const setPanelWidth = useCallback((panel: 'sidebar' | 'fileTree' | 'chat', width: number) => {
+  const setPanelWidth = useCallback((panel: 'sidebar' | 'fileTree' | 'search' | 'chat' | 'agent', width: number) => {
     dispatch({ type: 'SET_PANEL_WIDTH', panel, width: Math.max(150, Math.min(800, width)) })
   }, [])
 
