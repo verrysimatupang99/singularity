@@ -3,7 +3,7 @@ import { join } from 'path'
 import { writeFileSync, existsSync } from 'fs'
 import OpenAI from 'openai'
 import Anthropic from '@anthropic-ai/sdk'
-import * as pty from 'node-pty'
+import pty from 'node-pty'
 import {
   listSessions,
   createSession,

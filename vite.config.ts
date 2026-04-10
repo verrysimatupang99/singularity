@@ -26,17 +26,17 @@ const MAIN_EXTERNALS = [
   'buffer',
   'process',
   'zlib',
-  // Native addons / packages with native binaries
+  // === NATIVE ADDONS — must be external (have .node binaries that can't be bundled) ===
+  'node-pty',
   '@nut-tree/nut-js',
   '@nut-tree-fork/nut-js',
-  // Marketplace install helper (uses native fs/zlib internals)
-  'extract-zip',
-  // Electron ecosystem packages (use Electron APIs at require-time)
+  'keytar',
+  'fsevents',
+  // === CJS Electron ecosystem — no ESM exports ===
   'electron-updater',
   'electron-log',
-  // Any other packages that ship prebuilt .node files
-  'fsevents',
-  'keytar',
+  // === Packages with native/fs internals ===
+  'extract-zip',
 ]
 
 export default defineConfig({
@@ -87,7 +87,6 @@ export default defineConfig({
         // Code-split Monaco editor and other large vendor chunks
         manualChunks: (id) => {
           if (id.includes('node_modules/monaco-editor')) return 'monaco'
-          if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) return 'react'
           if (id.includes('node_modules/@radix-ui')) return 'radix'
           if (id.includes('node_modules/lucide-react')) return 'icons'
           if (id.includes('node_modules')) return 'vendor'
