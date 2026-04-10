@@ -5,9 +5,10 @@ interface MessageBubbleProps {
   content: string
   role: 'user' | 'assistant' | 'system'
   timestamp: number
+  tokenUsage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number }
 }
 
-export default function MessageBubble({ content, role, timestamp }: MessageBubbleProps) {
+export default function MessageBubble({ content, role, timestamp, tokenUsage }: MessageBubbleProps) {
   const [copiedCodeIndex, setCopiedCodeIndex] = useState<number | null>(null)
   const [copiedMessage, setCopiedMessage] = useState(false)
 
@@ -183,6 +184,25 @@ export default function MessageBubble({ content, role, timestamp }: MessageBubbl
           {copiedMessage ? 'Copied!' : 'Copy'}
         </button>
       </div>
+
+      {/* Token usage (assistant messages only) */}
+      {!isUser && !isSystem && tokenUsage && tokenUsage.totalTokens ? (
+        <div
+          style={{
+            fontSize: '11px',
+            color: '#484f58',
+            marginTop: '8px',
+            padding: '0 4px',
+            fontFamily: 'monospace',
+          }}
+        >
+          <span title="Input tokens">{'\u2191'} {tokenUsage.inputTokens?.toLocaleString() ?? 0}</span>
+          {'  '}
+          <span title="Output tokens">{'\u2193'} {tokenUsage.outputTokens?.toLocaleString() ?? 0}</span>
+          {'  '}
+          <span title="Total tokens">{'\u03A3'} {tokenUsage.totalTokens.toLocaleString()}</span>
+        </div>
+      ) : null}
     </div>
   )
 }

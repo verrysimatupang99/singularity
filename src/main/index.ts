@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'path'
+import { writeFileSync, existsSync } from 'fs'
 import OpenAI from 'openai'
 import Anthropic from '@anthropic-ai/sdk'
 import {
@@ -129,6 +130,59 @@ ipcMain.handle('sessions:save', (_event, { id, messages }: { id: string; message
   }
 })
 
+// Session Export (TASK 3)
+ipcMain.handle('session:export', async (_event, {
+  sessionId, format,
+}: { sessionId: string; format: 'markdown' | 'json' }) => {
+  const { dialog } = await import('electron')
+  const { session, messages } = loadSession(sessionId)
+
+  let content: string
+  let defaultName: string
+  let filters: Array<{ name: string; extensions: string[] }>
+
+  if (format === 'json') {
+    content = JSON.stringify({ session, messages }, null, 2)
+    defaultName = `${session.name.replace(/[^a-z0-9]/gi, '-')}-${Date.now()}.json`
+    filters = [{ name: 'JSON', extensions: ['json'] }]
+  } else {
+    const lines: string[] = [
+      `# ${session.name}`,
+      ``,
+      `**Provider:** ${session.provider} | **Model:** ${session.model}`,
+      `**Date:** ${new Date(session.createdAt).toLocaleString()}`,
+      ``,
+      `---`,
+      ``,
+    ]
+    for (const msg of messages) {
+      const role = msg.role === 'user' ? '**You**' : '**Assistant**'
+      const time = new Date(msg.timestamp).toLocaleTimeString()
+      lines.push(`### ${role} · ${time}`)
+      lines.push(``)
+      lines.push(msg.content)
+      if ((msg as any).tokenUsage?.totalTokens) {
+        lines.push(``)
+        lines.push(`*${(msg as any).tokenUsage.totalTokens.toLocaleString()} tokens*`)
+      }
+      lines.push(``)
+      lines.push(`---`)
+      lines.push(``)
+    }
+    content = lines.join('\n')
+    defaultName = `${session.name.replace(/[^a-z0-9]/gi, '-')}-${Date.now()}.md`
+    filters = [{ name: 'Markdown', extensions: ['md'] }]
+  }
+
+  const { filePath } = await dialog.showSaveDialog({ defaultPath: defaultName, filters })
+
+  if (filePath) {
+    writeFileSync(filePath, content, 'utf8')
+    return { success: true, filePath }
+  }
+  return { success: false, cancelled: true }
+})
+
 // Settings
 ipcMain.handle('settings:get', () => {
   try {
@@ -206,22 +260,31 @@ ipcMain.handle('chat:send', async (_event, {
     try {
       const resolvedApiKey = apiKey || getApiKey(provider) || ''
       let content = ''
+      let usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
 
       if (provider === 'openai' || provider === 'openrouter' || provider === 'qwen') {
-        content = await chatOpenAICompatible(provider, model, messages, resolvedApiKey, requestId, controller)
+        const result = await chatOpenAICompatible(provider, model, messages, resolvedApiKey, requestId, controller)
+        content = result.content
+        usage = result.usage
       } else if (provider === 'anthropic') {
-        content = await chatAnthropic(model, messages, resolvedApiKey, requestId, controller)
+        const result = await chatAnthropic(model, messages, resolvedApiKey, requestId, controller)
+        content = result.content
+        usage = result.usage
       } else if (provider === 'gemini') {
-        content = await chatGemini(model, messages, resolvedApiKey, requestId, controller)
+        const result = await chatGemini(model, messages, resolvedApiKey, requestId, controller)
+        content = result.content
+        usage = result.usage
       } else if (provider === 'copilot') {
         // Copilot uses OpenAI-compatible endpoint
-        content = await chatOpenAICompatible('copilot', model, messages, resolvedApiKey, requestId, controller)
+        const result = await chatOpenAICompatible('copilot', model, messages, resolvedApiKey, requestId, controller)
+        content = result.content
+        usage = result.usage
       } else {
         throw new Error(`Unknown provider: ${provider}`)
       }
 
       if (mainWindow && !controller.signal.aborted) {
-        mainWindow.webContents.send('chat:chunk', { requestId, content, done: true })
+        mainWindow.webContents.send('chat:chunk', { requestId, content, done: true, usage })
       }
     } catch (err) {
       if (mainWindow && !controller.signal.aborted) {
@@ -257,7 +320,7 @@ async function chatOpenAICompatible(
   apiKey: string,
   requestId: string,
   controller: AbortController,
-): Promise<string> {
+): Promise<{ content: string; usage: { inputTokens: number; outputTokens: number; totalTokens: number } }> {
   const baseURL = getProviderBaseUrl(provider)
 
   const client = new OpenAI({
@@ -274,11 +337,13 @@ async function chatOpenAICompatible(
         content: m.content,
       })),
       stream: true,
+      stream_options: { include_usage: true },
     },
     { signal: controller.signal },
   )
 
   let fullContent = ''
+  let usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
   for await (const chunk of stream) {
     const delta = chunk.choices[0]?.delta?.content
     if (delta) {
@@ -287,8 +352,14 @@ async function chatOpenAICompatible(
         mainWindow.webContents.send('chat:chunk', { requestId, content: fullContent, done: false })
       }
     }
+    // Track usage from final chunk
+    if (chunk.usage) {
+      usage.inputTokens = (chunk.usage as any).prompt_tokens ?? 0
+      usage.outputTokens = (chunk.usage as any).completion_tokens ?? 0
+      usage.totalTokens = (chunk.usage as any).total_tokens ?? 0
+    }
   }
-  return fullContent
+  return { content: fullContent, usage }
 }
 
 async function chatAnthropic(
@@ -297,7 +368,7 @@ async function chatAnthropic(
   apiKey: string,
   requestId: string,
   controller: AbortController,
-): Promise<string> {
+): Promise<{ content: string; usage: { inputTokens: number; outputTokens: number; totalTokens: number } }> {
   const client = new Anthropic({
     apiKey,
   })
@@ -321,7 +392,14 @@ async function chatAnthropic(
   )
 
   let fullContent = ''
+  let usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
   for await (const chunk of stream) {
+    if (chunk.type === 'message_start' && (chunk as any).message?.usage) {
+      usage.inputTokens = (chunk as any).message.usage.input_tokens ?? 0
+    }
+    if (chunk.type === 'message_delta' && (chunk as any).usage) {
+      usage.outputTokens = (chunk as any).usage.output_tokens ?? 0
+    }
     if (chunk.type === 'content_block_delta' && 'text' in chunk.delta) {
       fullContent += chunk.delta.text
       if (mainWindow && !controller.signal.aborted) {
@@ -329,7 +407,8 @@ async function chatAnthropic(
       }
     }
   }
-  return fullContent
+  usage.totalTokens = usage.inputTokens + usage.outputTokens
+  return { content: fullContent, usage }
 }
 
 async function chatGemini(
@@ -338,7 +417,7 @@ async function chatGemini(
   apiKey: string,
   requestId: string,
   controller: AbortController,
-): Promise<string> {
+): Promise<{ content: string; usage: { inputTokens: number; outputTokens: number; totalTokens: number } }> {
   // Use Google Generative Language REST API
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?key=${apiKey}&alt=sse`
 
@@ -376,6 +455,7 @@ async function chatGemini(
   const decoder = new TextDecoder()
   let fullContent = ''
   let buffer = ''
+  let usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
 
   while (true) {
     const { done, value } = await reader.read()
@@ -396,6 +476,12 @@ async function chatGemini(
               mainWindow.webContents.send('chat:chunk', { requestId, content: fullContent, done: false })
             }
           }
+          // Track usage from usageMetadata
+          if (data.usageMetadata) {
+            usage.inputTokens = data.usageMetadata.promptTokenCount ?? 0
+            usage.outputTokens = data.usageMetadata.candidatesTokenCount ?? 0
+            usage.totalTokens = data.usageMetadata.totalTokenCount ?? 0
+          }
         } catch {
           // Skip unparseable lines
         }
@@ -403,7 +489,7 @@ async function chatGemini(
     }
   }
 
-  return fullContent
+  return { content: fullContent, usage }
 }
 
 function getProviderBaseUrl(provider: string): string | undefined {
@@ -768,6 +854,47 @@ ipcMain.handle('auth:disconnect', (_event, { providerId }: { providerId: string 
 
 ipcMain.handle('security:isSecureMode', () => {
   return isSecureMode()
+})
+
+// ---------------------------------------------------------------------------
+// File Operations (TASK 2)
+// ---------------------------------------------------------------------------
+
+ipcMain.handle('file:pick', async () => {
+  const { dialog } = await import('electron')
+  const result = await dialog.showOpenDialog({
+    properties: ['openFile', 'multiSelections'],
+    filters: [
+      { name: 'All Supported', extensions: ['jpg','jpeg','png','gif','webp','txt','md','ts','tsx','js','py','json','html','css'] },
+      { name: 'Images', extensions: ['jpg','jpeg','png','gif','webp'] },
+      { name: 'Text Files', extensions: ['txt','md','ts','tsx','js','py','json','html','css'] },
+    ],
+  })
+  return result.filePaths
+})
+
+ipcMain.handle('file:read', async (_event, filePath: string) => {
+  const { readFileSync, statSync } = await import('fs')
+  const { extname } = await import('path')
+  const stat = statSync(filePath)
+  if (stat.size > 10 * 1024 * 1024) throw new Error('File too large (max 10MB)')
+  const ext = extname(filePath).toLowerCase()
+  const mimeMap: Record<string, string> = {
+    '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+    '.gif': 'image/gif', '.webp': 'image/webp', '.pdf': 'application/pdf',
+    '.txt': 'text/plain', '.md': 'text/markdown',
+    '.ts': 'text/typescript', '.tsx': 'text/typescript',
+    '.js': 'text/javascript', '.py': 'text/x-python',
+    '.json': 'application/json', '.html': 'text/html', '.css': 'text/css',
+  }
+  const mimeType = mimeMap[ext] || 'application/octet-stream'
+  const isText = mimeType.startsWith('text/') || mimeType === 'application/json'
+  const name = filePath.split('/').at(-1) || 'unknown'
+  if (isText) {
+    return { type: 'text', content: readFileSync(filePath, 'utf8'), mimeType, name, size: stat.size }
+  } else {
+    return { type: 'image', content: readFileSync(filePath).toString('base64'), mimeType, name, size: stat.size }
+  }
 })
 
 // ---------------------------------------------------------------------------

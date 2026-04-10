@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Session, ChatMessage, ProviderInfo, PROVIDERS, ToolCall, StreamChunk } from './types'
+import { Session, ChatMessage, ProviderInfo, PROVIDERS, ToolCall, StreamChunk, Attachment } from './types'
 import Sidebar from './components/Sidebar'
 import ChatView from './components/ChatView'
 import SettingsView from './components/SettingsView'
@@ -22,6 +22,7 @@ export default function App() {
   const [sessions, setSessions] = useState<Session[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [sessionTokenTotals, setSessionTokenTotals] = useState<Record<string, number>>({})
 
   // New session dialog
   const [showNewSessionDialog, setShowNewSessionDialog] = useState(false)
@@ -53,6 +54,19 @@ export default function App() {
   useEffect(() => {
     loadProviderStatus()
   }, [settings])
+
+  // Update session token totals when messages change
+  useEffect(() => {
+    if (activeSessionId) {
+      const total = messages.reduce((sum, msg) => {
+        if (msg.tokenUsage?.totalTokens) {
+          return sum + msg.tokenUsage.totalTokens
+        }
+        return sum
+      }, 0)
+      setSessionTokenTotals((prev) => ({ ...prev, [activeSessionId]: total }))
+    }
+  }, [messages, activeSessionId])
 
   const loadSessions = useCallback(async () => {
     try {
@@ -111,6 +125,9 @@ export default function App() {
               role: 'assistant',
               content: data.content,
               timestamp: Date.now(),
+              tokenUsage: data.usage,
+              model: sessions.find((s) => s.id === activeSessionId)?.model,
+              provider: sessions.find((s) => s.id === activeSessionId)?.provider,
             }
             setMessages((prev) => [...prev, assistantMsg])
             setStreamingContent(null)
@@ -119,7 +136,7 @@ export default function App() {
       }
     })
     return cleanup
-  }, [activeRequestId])
+  }, [activeRequestId, activeSessionId, sessions])
 
   const setupCliStreamListener = useCallback(() => {
     const cleanup = window.api.onCliStream((data) => {
@@ -212,7 +229,7 @@ export default function App() {
 
   // Send message
   const handleSendMessage = useCallback(
-    async (content: string) => {
+    async (content: string, attachments?: Attachment[]) => {
       const activeSession = sessions.find((s) => s.id === activeSessionId)
       if (!activeSession) return
 
@@ -221,6 +238,7 @@ export default function App() {
         role: 'user',
         content,
         timestamp: Date.now(),
+        attachments,
       }
       const newMessages = [...messages, userMsg]
       setMessages(newMessages)
@@ -333,6 +351,7 @@ export default function App() {
         onToggleToolInspector={() => setShowToolInspector((prev) => !prev)}
         showToolInspector={showToolInspector}
         pendingToolCallCount={pendingToolCallCount}
+        sessionTokenTotals={sessionTokenTotals}
       />
 
       {/* Main Content */}

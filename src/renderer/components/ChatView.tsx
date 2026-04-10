@@ -1,16 +1,17 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { ChatMessage, Session, ToolCall } from '../types'
+import { ChatMessage, Session, ToolCall, Attachment } from '../types'
 import MessageBubble from './MessageBubble'
 
 interface ChatViewProps {
   session: Session | null
   messages: ChatMessage[]
-  onSendMessage: (content: string) => void
+  onSendMessage: (content: string, attachments?: Attachment[]) => void
   onSaveMessages: (messages: ChatMessage[]) => void
   isLoading: boolean
   onCancel: () => void
   streamingContent: string | null
   activeToolCalls: ToolCall[]
+  onExportSuccess?: (path: string) => void
 }
 
 export default function ChatView({
@@ -22,8 +23,12 @@ export default function ChatView({
   onCancel,
   streamingContent,
   activeToolCalls,
+  onExportSuccess,
 }: ChatViewProps) {
   const [input, setInput] = useState('')
+  const [attachments, setAttachments] = useState<Attachment[]>([])
+  const [exportMenu, setExportMenu] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -44,11 +49,60 @@ export default function ChatView({
     }
   }, [input])
 
+  const handlePickFiles = async () => {
+    try {
+      const filePaths = await window.api.filePick()
+      if (!filePaths || filePaths.length === 0) return
+      const newAttachments: Attachment[] = []
+      for (const fp of filePaths) {
+        try {
+          const fileData = await window.api.fileRead(fp)
+          newAttachments.push({
+            id: `att_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+            name: fileData.name,
+            type: fileData.type,
+            mimeType: fileData.mimeType,
+            content: fileData.content,
+            size: fileData.size,
+          })
+        } catch (err) {
+          console.error(`Failed to read file ${fp}:`, err)
+        }
+      }
+      setAttachments((prev) => [...prev, ...newAttachments])
+    } catch (err) {
+      console.error('Failed to pick files:', err)
+    }
+  }
+
+  const handleRemoveAttachment = (id: string) => {
+    setAttachments((prev) => prev.filter((a) => a.id !== id))
+  }
+
+  const handleExport = async (format: 'markdown' | 'json') => {
+    if (!session) return
+    setExportMenu(false)
+    try {
+      const result = await window.api.sessionExport(session.id, format)
+      if (result.success && result.filePath) {
+        setToast(`Exported: ${result.filePath}`)
+        onExportSuccess?.(result.filePath)
+        setTimeout(() => setToast(null), 4000)
+      }
+    } catch (err) {
+      console.error('Export failed:', err)
+      setToast('Export failed')
+      setTimeout(() => setToast(null), 4000)
+    }
+  }
+
   const handleSend = () => {
     const trimmed = input.trim()
-    if (!trimmed || isLoading) return
-    onSendMessage(trimmed)
+    if (!trimmed && attachments.length === 0) return
+    if (isLoading) return
+    onSendMessage(trimmed || '(attachment)', attachments.length > 0 ? attachments : undefined)
     setInput('')
+    setAttachments([])
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
     }
@@ -141,6 +195,82 @@ export default function ChatView({
             {session.provider} / {session.model}
           </div>
         </div>
+        {messages.length > 0 && (
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setExportMenu((v) => !v)}
+              title="Export session"
+              style={{
+                backgroundColor: '#21262d',
+                border: '1px solid #30363d',
+                color: '#8b949e',
+                padding: '4px 10px',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '0.85rem',
+                fontWeight: 700,
+                lineHeight: 1,
+              }}
+            >
+              &#8942;
+            </button>
+            {exportMenu && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  right: 0,
+                  marginTop: '4px',
+                  backgroundColor: '#161b22',
+                  border: '1px solid #30363d',
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+                  zIndex: 100,
+                  overflow: 'hidden',
+                }}
+              >
+                <button
+                  onClick={() => handleExport('markdown')}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    padding: '8px 16px',
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    color: '#c9d1d9',
+                    cursor: 'pointer',
+                    fontSize: '0.85rem',
+                    textAlign: 'left',
+                    whiteSpace: 'nowrap',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#21262d' }}
+                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent' }}
+                >
+                  Export as Markdown
+                </button>
+                <button
+                  onClick={() => handleExport('json')}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    padding: '8px 16px',
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    color: '#c9d1d9',
+                    cursor: 'pointer',
+                    fontSize: '0.85rem',
+                    textAlign: 'left',
+                    whiteSpace: 'nowrap',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#21262d' }}
+                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent' }}
+                >
+                  Export as JSON
+                </button>
+              </div>
+            )}
+          </div>
+        )}
         {isLoading && (
           <div
             style={{
@@ -240,6 +370,7 @@ export default function ChatView({
                 content={msg.content}
                 role={msg.role}
                 timestamp={msg.timestamp}
+                tokenUsage={msg.tokenUsage}
               />
             </div>
           )
@@ -255,6 +386,60 @@ export default function ChatView({
           backgroundColor: '#161b22',
         }}
       >
+        {/* Attachment chips */}
+        {attachments.length > 0 && (
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: '6px',
+              marginBottom: '8px',
+            }}
+          >
+            {attachments.map((att) => (
+              <div
+                key={att.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '4px 8px',
+                  backgroundColor: '#21262d',
+                  border: '1px solid #30363d',
+                  borderRadius: '6px',
+                  fontSize: '0.75rem',
+                  color: '#c9d1d9',
+                }}
+              >
+                <span style={{ fontSize: '0.8rem' }}>
+                  {att.type === 'image' ? '\uD83D\uDDBC' : '\uD83D\uDCCE'}
+                </span>
+                <span style={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {att.name}
+                </span>
+                <span style={{ color: '#484f58', fontSize: '0.65rem' }}>
+                  ({formatFileSize(att.size)})
+                </span>
+                <button
+                  onClick={() => handleRemoveAttachment(att.id)}
+                  style={{
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    color: '#f85149',
+                    cursor: 'pointer',
+                    padding: '0 2px',
+                    fontSize: '0.85rem',
+                    lineHeight: 1,
+                  }}
+                  title="Remove attachment"
+                >
+                  {'\u2715'}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div
           style={{
             display: 'flex',
@@ -266,6 +451,24 @@ export default function ChatView({
             padding: '8px 12px',
           }}
         >
+          <button
+            onClick={handlePickFiles}
+            disabled={isLoading}
+            title="Attach file"
+            style={{
+              backgroundColor: 'transparent',
+              border: 'none',
+              color: isLoading ? '#484f58' : '#8b949e',
+              cursor: isLoading ? 'not-allowed' : 'pointer',
+              padding: '4px 6px',
+              display: 'flex',
+              alignItems: 'center',
+              fontSize: '1.1rem',
+              flexShrink: 0,
+            }}
+          >
+            {'\uD83D\uDCCE'}
+          </button>
           <textarea
             ref={textareaRef}
             value={input}
@@ -289,14 +492,14 @@ export default function ChatView({
           />
           <button
             onClick={handleSend}
-            disabled={isLoading || !input.trim()}
+            disabled={isLoading || (!input.trim() && attachments.length === 0)}
             style={{
-              backgroundColor: input.trim() && !isLoading ? '#238636' : '#21262d',
+              backgroundColor: (input.trim() || attachments.length > 0) && !isLoading ? '#238636' : '#21262d',
               border: 'none',
               borderRadius: '8px',
-              color: input.trim() && !isLoading ? '#fff' : '#484f58',
+              color: (input.trim() || attachments.length > 0) && !isLoading ? '#fff' : '#484f58',
               padding: '8px 16px',
-              cursor: input.trim() && !isLoading ? 'pointer' : 'not-allowed',
+              cursor: (input.trim() || attachments.length > 0) && !isLoading ? 'pointer' : 'not-allowed',
               fontSize: '0.85rem',
               fontWeight: 600,
               display: 'flex',
@@ -319,6 +522,31 @@ export default function ChatView({
           50% { opacity: 0.4; }
         }
       `}</style>
+
+      {/* Export toast */}
+      {toast && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: '24px',
+            right: '24px',
+            backgroundColor: '#238636',
+            color: '#fff',
+            padding: '10px 16px',
+            borderRadius: '8px',
+            fontSize: '0.85rem',
+            fontWeight: 500,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+            zIndex: 9999,
+            maxWidth: 400,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {toast}
+        </div>
+      )}
     </div>
   )
 }
@@ -329,4 +557,10 @@ function SendIcon() {
       <path d="M.989 8 .064 1.58a1.45 1.45 0 0 1 2.04-1.483L14.492 4.82a1.275 1.275 0 0 1 0 2.36L2.104 11.903a1.45 1.45 0 0 1-2.04-1.482L.99 8Zm.961-.162 1.472 1.472a.25.25 0 0 0 .434-.162l.63-5.06a.25.25 0 0 0-.395-.236L1.573 5.68a.25.25 0 0 0 .013.434L3.95 7.838Z" />
     </svg>
   )
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }

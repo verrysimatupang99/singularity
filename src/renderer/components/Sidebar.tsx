@@ -14,6 +14,7 @@ interface SidebarProps {
   onToggleToolInspector: () => void
   showToolInspector: boolean
   pendingToolCallCount: number
+  sessionTokenTotals: Record<string, number>
 }
 
 const providerColors: Record<string, string> = {
@@ -36,6 +37,7 @@ export default function Sidebar({
   onToggleToolInspector,
   showToolInspector,
   pendingToolCallCount,
+  sessionTokenTotals,
 }: SidebarProps) {
   const connectedCount = providers.filter((p) => p.status === 'connected').length
 
@@ -177,6 +179,7 @@ export default function Sidebar({
           const isActive = session.id === activeSessionId
           const providerColor = providerColors[session.provider] || '#484f58'
           const timeStr = formatTime(session.updatedAt)
+          const tokenTotal = sessionTokenTotals[session.id] || 0
 
           return (
             <SessionItem
@@ -185,6 +188,7 @@ export default function Sidebar({
               isActive={isActive}
               providerColor={providerColor}
               timeStr={timeStr}
+              tokenTotal={tokenTotal}
               onSelect={() => onSelectSession(session.id)}
               onDelete={() => onDeleteSession(session.id)}
             />
@@ -252,6 +256,7 @@ function SessionItem({
   isActive,
   providerColor,
   timeStr,
+  tokenTotal,
   onSelect,
   onDelete,
 }: {
@@ -259,6 +264,7 @@ function SessionItem({
   isActive: boolean
   providerColor: string
   timeStr: string
+  tokenTotal: number
   onSelect: () => void
   onDelete: () => void
 }) {
@@ -320,6 +326,11 @@ function SessionItem({
             {session.provider}
           </span>
           <span style={{ fontSize: '0.7rem', color: '#484f58' }}>{timeStr}</span>
+          {tokenTotal > 0 && (
+            <span style={{ fontSize: '0.65rem', color: '#484f58', fontFamily: 'monospace' }}>
+              {'\u03A3'} {tokenTotal.toLocaleString()}
+            </span>
+          )}
         </div>
       </div>
       {hovered && (

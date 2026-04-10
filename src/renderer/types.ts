@@ -13,6 +13,19 @@ export interface ChatMessage {
   role: 'user' | 'assistant' | 'system'
   content: string
   timestamp: number
+  tokenUsage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number }
+  model?: string
+  provider?: string
+  attachments?: Attachment[]
+}
+
+export interface Attachment {
+  id: string
+  name: string
+  type: 'image' | 'text'
+  mimeType: string
+  content: string
+  size: number
 }
 
 export interface ProviderInfo {
@@ -190,7 +203,11 @@ export const PROVIDERS: { id: string; name: string; keyFormat: 'api-key' | 'oaut
     id: 'qwen',
     name: 'Qwen',
     keyFormat: 'api-key',
-    models: ['qwen-max', 'qwen-plus', 'qwen-turbo'],
+    models: [
+      'qwen-max-latest', 'qwen-plus-latest', 'qwen-turbo-latest',
+      'qwen3-235b-a22b', 'qwen3-72b', 'qwen3-32b', 'qwen3-14b', 'qwen3-8b',
+      'qvq-max', 'qwen-vl-max', 'qwen-coder-plus',
+    ],
   },
   {
     id: 'openrouter',
@@ -220,6 +237,7 @@ declare global {
       sessionDelete: (id: string) => Promise<void>
       sessionLoad: (id: string) => Promise<{ session: Session; messages: ChatMessage[] }>
       sessionSave: (id: string, messages: ChatMessage[]) => Promise<void>
+      sessionExport: (sessionId: string, format: 'markdown' | 'json') => Promise<{ success: boolean; filePath?: string; cancelled?: boolean }>
       chatSend: (provider: string, model: string, messages: ChatMessage[], apiKey?: string) => Promise<string>
       settingsGet: () => Promise<AppSettings>
       settingsSet: (settings: Partial<AppSettings>) => Promise<void>
@@ -227,7 +245,7 @@ declare global {
       authSetApiKey: (provider: string, key: string) => Promise<boolean>
       authDeleteApiKey: (provider: string) => Promise<void>
       providersList: () => Promise<Array<{ id: string; name: string; models: ModelInfo[] }>>
-      onChatChunk: (callback: (data: { requestId: string; content: string; done: boolean }) => void) => () => void
+      onChatChunk: (callback: (data: { requestId: string; content: string; done: boolean; usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number } }) => void) => () => void
       chatCancel: (requestId: string) => Promise<void>
 
       // CLI (M7)
@@ -265,6 +283,10 @@ declare global {
 
       // Security (TASK 4c)
       isSecureMode: () => Promise<boolean>
+
+      // File operations (TASK 2)
+      filePick: () => Promise<string[]>
+      fileRead: (path: string) => Promise<{ type: 'image' | 'text'; content: string; mimeType: string; name: string; size: number }>
 
       // Gemini credential import (TASK 5b)
       authImportGeminiCreds: () => Promise<{ success: boolean; error?: string }>

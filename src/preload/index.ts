@@ -12,6 +12,8 @@ contextBridge.exposeInMainWorld('api', {
   sessionLoad: (id: string) => ipcRenderer.invoke('sessions:load', id),
   sessionSave: (id: string, messages: unknown[]) =>
     ipcRenderer.invoke('sessions:save', { id, messages }),
+  sessionExport: (sessionId: string, format: 'markdown' | 'json') =>
+    ipcRenderer.invoke('session:export', { sessionId, format }),
 
   // Chat
   chatSend: (
@@ -44,11 +46,12 @@ contextBridge.exposeInMainWorld('api', {
       requestId: string
       content: string
       done: boolean
+      usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number }
     }) => void,
   ) => {
     const listener = (
       _event: Electron.IpcRendererEvent,
-      data: { requestId: string; content: string; done: boolean },
+      data: { requestId: string; content: string; done: boolean; usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number } },
     ) => callback(data)
     ipcRenderer.on('chat:chunk', listener)
     return () => {
@@ -146,6 +149,10 @@ contextBridge.exposeInMainWorld('api', {
 
   // Security (TASK 4c)
   isSecureMode: () => ipcRenderer.invoke('security:isSecureMode'),
+
+  // File operations (TASK 2)
+  filePick: () => ipcRenderer.invoke('file:pick'),
+  fileRead: (path: string) => ipcRenderer.invoke('file:read', path),
 
   // Gemini credential import (TASK 5b)
   authImportGeminiCreds: () => ipcRenderer.invoke('auth:import-gemini-creds'),
