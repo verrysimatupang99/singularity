@@ -2,6 +2,7 @@ import type { AgentEvent, ChatMessage } from '../providers/types.js'
 import { BUILT_IN_TOOLS, executeTool } from './agentTools.js'
 import { getApiKey } from './storage.js'
 import { getMcpManager } from './mcpManager.js'
+import OpenAI from 'openai'
 
 export interface AgentRunnerOptions {
   agentId: string; task: string; workspaceRoot: string; provider: string; model: string

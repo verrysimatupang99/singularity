@@ -44,7 +44,6 @@ Rules: max 5 sub-agents, each has ONE focused task, use dependsOn only when trul
 Task: ${task}
 Workspace: ${this.opts.workspaceRoot}`
 
-    const { default: OpenAI } = await import('openai')
     const client = new OpenAI({ apiKey, baseURL: this.opts.provider === 'qwen' ? 'https://dashscope.aliyuncs.com/compatible-mode/v1' : this.opts.provider === 'openrouter' ? 'https://openrouter.ai/api/v1' : undefined })
     const resp = await client.chat.completions.create({ model: this.opts.model, messages: [{ role: 'user', content: prompt }], max_tokens: 1024 })
     const content = resp.choices[0]?.message?.content || ''

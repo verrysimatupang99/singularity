@@ -14,14 +14,13 @@ function getConfigDir(): string {
     return app.getPath('userData')
   } catch {
     // Fallback for early calls before app is ready
-    const { homedir } = require('os')
     if (process.platform === 'darwin') {
-      return join(homedir(), 'Library', 'Application Support', 'Singularity')
+      return join(os.homedir(), 'Library', 'Application Support', 'Singularity')
     }
     if (process.platform === 'win32') {
-      return join(homedir(), 'AppData', 'Roaming', 'Singularity')
+      return join(os.homedir(), 'AppData', 'Roaming', 'Singularity')
     }
-    return join(homedir(), '.config', 'singularity')
+    return join(os.homedir(), '.config', 'singularity')
   }
 }
 

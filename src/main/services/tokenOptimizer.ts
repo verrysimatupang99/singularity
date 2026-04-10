@@ -1,5 +1,6 @@
 import type { ChatMessage } from '../providers/types.js'
 import { getApiKey } from './storage.js'
+import OpenAI from 'openai'
 
 export class TokenOptimizer {
   async rollingSummary(messages: ChatMessage[], keepLast: number = 10, provider?: string, model?: string): Promise<ChatMessage[]> {
@@ -11,7 +12,6 @@ export class TokenOptimizer {
     if (!apiKey) return this.truncateToFit(messages, 50000)
 
     try {
-      const { default: OpenAI } = await import('openai')
       const client = new OpenAI({ apiKey, baseURL: provider === 'qwen' ? 'https://dashscope.aliyuncs.com/compatible-mode/v1' : provider === 'openrouter' ? 'https://openrouter.ai/api/v1' : undefined })
       const summaryText = toSummarize.map(m => `${m.role}: ${m.content.slice(0, 500)}`).join('\n\n')
       const resp = await client.chat.completions.create({

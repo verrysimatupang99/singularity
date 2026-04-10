@@ -112,7 +112,6 @@ function createSecondaryWindow(options: { route?: string; width?: number; height
       preload: preloadPath,
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
     },
   })
 
