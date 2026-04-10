@@ -59,40 +59,29 @@ export default function App() {
   const [showToolInspector, setShowToolInspector] = useState(false)
   const [toolCalls, setToolCalls] = useState<ToolCall[]>([])
 
-  // Pending chat message (from editor "Ask AI")
-  const [pendingChatMessage, setPendingChatMessage] = useState<string>('')
+  // Pending chat message (from inline chat or other sources)
+  const [pendingChatMessage, setPendingChatMessage] = useState('')
 
   // Onboarding
   const [showOnboarding, setShowOnboarding] = useState(false)
+
+  // Layout context
+  const {
+    panels,
+    togglePanel,
+    setPanelWidth,
+    setTerminalHeight,
+    activeFile,
+    openFile,
+    workspaceRoot,
+  } = useLayout()
 
   // Load initial data
   useEffect(() => {
     loadSessions()
     loadSettings()
     const cleanup1 = setupChatChunkListener()
-    const cleanup2 = window.api.onCliStream((data) => {
-      const chunk = data.chunk as StreamChunk
-
-      if (chunk.type === 'tool_call' && chunk.toolCall) {
-        const newToolCall: ToolCall = {
-          id: chunk.toolCall.id,
-          name: chunk.toolCall.kind,
-          args: chunk.toolCall.args || {},
-          status: 'pending',
-          timestamp: Date.now(),
-        }
-        setToolCalls((prev) => [...prev, newToolCall])
-      } else if (chunk.type === 'end_turn') {
-        setToolCalls((prev) =>
-          prev.map((tc) =>
-            tc.status === 'pending' || tc.status === 'executing'
-              ? { ...tc, status: chunk.stopReason === 'error' ? 'failed' as const : 'completed' as const, result: chunk.errorMessage }
-              : tc,
-          ),
-        )
-      }
-    })
-    checkOnboarding()
+    const cleanup2 = setupCliStreamListener()
     return () => { cleanup1?.(); cleanup2?.() }
   }, [])
 
@@ -101,18 +90,17 @@ export default function App() {
     loadProviderStatus()
   }, [settings])
 
-  // Update session token totals when messages change
+  // Check onboarding on mount
   useEffect(() => {
-    if (activeSessionId) {
-      const total = messages.reduce((sum, msg) => {
-        if (msg.tokenUsage?.totalTokens) {
-          return sum + msg.tokenUsage.totalTokens
-        }
-        return sum
-      }, 0)
-      setSessionTokenTotals((prev) => ({ ...prev, [activeSessionId]: total }))
-    }
-  }, [messages, activeSessionId])
+    checkOnboarding()
+  }, [])
+
+  const checkOnboarding = useCallback(async () => {
+    try {
+      const isFirst = await (window as any).api?.storageIsFirstRun?.()
+      if (isFirst) setShowOnboarding(true)
+    } catch {}
+  }, [])
 
   const loadSessions = useCallback(async () => {
     try {
@@ -134,82 +122,67 @@ export default function App() {
 
   const loadProviderStatus = useCallback(async () => {
     try {
-      const [status, registryProviders] = await Promise.all([
-        window.api.authStatus(),
-        window.api.providersList(),
-      ])
-
-      const providerInfos: ProviderInfo[] = PROVIDERS.map((p) => {
-        const registryProvider = registryProviders.find((r) => r.id === p.id)
-        return {
-          id: p.id,
-          name: registryProvider?.name ?? p.name,
-          icon: p.id,
-          status: status[p.id]?.status === 'connected' ? 'connected' : 'disconnected',
-          models: registryProvider?.models?.length
-            ? registryProvider.models.map((m) => ({ id: m.id, name: m.name }))
-            : (status[p.id]?.models || p.models).map((m: string) => ({ id: m, name: m })),
-        }
-      })
+      const status = await window.api.authStatus()
+      const providerInfos: ProviderInfo[] = PROVIDERS.map((p) => ({
+        id: p.id,
+        name: p.name,
+        icon: p.id,
+        status: status[p.id]?.status === 'connected' ? 'connected' : 'disconnected',
+        models: (status[p.id]?.models || p.models).map((m: string) => ({ id: m, name: m })),
+      }))
       setProviders(providerInfos)
     } catch (err) {
       console.error('Failed to load provider status:', err)
     }
   }, [])
 
-  const checkOnboarding = useCallback(async () => {
-    try {
-      const isFirst = await window.api.storageIsFirstRun()
-      if (isFirst) setShowOnboarding(true)
-    } catch {
-      // Ignore errors
-    }
-  }, [])
-
   const setupChatChunkListener = useCallback(() => {
-    const cleanup = window.api.onChatChunk((data) => {
+    return window.api.onChatChunk((data) => {
       if (data.requestId === activeRequestId) {
         setStreamingContent(data.content)
         if (data.done) {
           setIsLoading(false)
           setActiveRequestId(null)
-          // Add the final assistant message
           if (data.content) {
             const assistantMsg: ChatMessage = {
               id: `msg_${Date.now()}`,
               role: 'assistant',
               content: data.content,
               timestamp: Date.now(),
-              tokenUsage: data.usage,
-              model: sessions.find((s) => s.id === activeSessionId)?.model,
-              provider: sessions.find((s) => s.id === activeSessionId)?.provider,
             }
-            setMessages((prev) => [...prev, assistantMsg])
-            setStreamingContent(null)
+            setMessages(prev => [...prev, assistantMsg])
           }
         }
       }
     })
-    return cleanup
-  }, [activeRequestId, activeSessionId, sessions])
+  }, [activeRequestId])
 
-  // Handle session selection
+  const setupCliStreamListener = useCallback(() => {
+    return window.api.onCliStream(({ sessionId, chunk }) => {
+      if (chunk?.type === 'tool_call' && chunk?.toolCall) {
+        setToolCalls(prev => [...prev, {
+          id: chunk.toolCall?.id || `tool_${Date.now()}`,
+          name: chunk.toolCall?.command || 'unknown',
+          args: chunk.toolCall?.args || {},
+          status: 'pending',
+          timestamp: Date.now(),
+        }])
+      }
+    })
+  }, [])
+
+  // Select session
   const handleSelectSession = useCallback(async (id: string) => {
     setActiveSessionId(id)
-    setCurrentView('chat')
-    setStreamingContent(null)
-    setIsLoading(false)
-    setToolCalls([]) // Clear tool calls on session switch
     try {
       const { session, messages: msgs } = await window.api.sessionLoad(id)
       setMessages(msgs)
     } catch (err) {
       console.error('Failed to load session:', err)
-      setMessages([])
     }
   }, [])
 
-  // Create new session — show provider/model selection dialog
+  // Create new session
   const handleNewSession = useCallback(() => {
     const defaultProvider = settings?.defaultProvider || 'openai'
     const providerInfo = providers.find((p) => p.id === defaultProvider)
@@ -244,9 +217,6 @@ export default function App() {
         if (activeSessionId === id) {
           setActiveSessionId(null)
           setMessages([])
-          setStreamingContent(null)
-          setIsLoading(false)
-          setToolCalls([])
         }
       } catch (err) {
         console.error('Failed to delete session:', err)
@@ -255,45 +225,76 @@ export default function App() {
     [activeSessionId],
   )
 
+  // Save settings
+  const handleSaveSettings = useCallback(
+    async (updates: Partial<AppSettings>) => {
+      try {
+        await window.api.settingsSet(updates)
+        setSettings((prev) => (prev ? { ...prev, ...updates } : (updates as AppSettings)))
+      } catch (err) {
+        console.error('Failed to save settings:', err)
+      }
+    },
+    [],
+  )
+
+  // Set API key
+  const handleSetApiKey = useCallback(async (provider: string, key: string) => {
+    try {
+      await window.api.authSetApiKey(provider, key)
+      setSettings(prev => prev ? { ...prev, apiKeys: { ...prev.apiKeys, [provider]: key } } : { apiKeys: { [provider]: key } } as any)
+    } catch (err) {
+      console.error('Failed to set API key:', err)
+    }
+  }, [])
+
+  // Delete API key
+  const handleDeleteApiKey = useCallback(async (provider: string) => {
+    try {
+      await window.api.authDeleteApiKey(provider)
+      setSettings(prev => {
+        if (!prev) return prev
+        const { [provider]: _, ...rest } = prev.apiKeys
+        return { ...prev, apiKeys: rest }
+      })
+    } catch (err) {
+      console.error('Failed to delete API key:', err)
+    }
+  }, [])
+
   // Send message
   const handleSendMessage = useCallback(
     async (content: string, attachments?: Attachment[]) => {
-      const activeSession = sessions.find((s) => s.id === activeSessionId)
-      if (!activeSession) return
+      if (!activeSessionId || isLoading) return
 
       const userMsg: ChatMessage = {
         id: `msg_${Date.now()}`,
         role: 'user',
         content,
         timestamp: Date.now(),
-        attachments,
       }
-      const newMessages = [...messages, userMsg]
-      setMessages(newMessages)
+      setMessages((prev) => [...prev, userMsg])
       setStreamingContent(null)
       setIsLoading(true)
 
+      const session = sessions.find((s) => s.id === activeSessionId)
+      if (!session) return
+
+      const allMessages = [...messages, userMsg].map((m) => ({
+        role: m.role,
+        content: m.content,
+      }))
+
       try {
-        const requestId = await window.api.chatSend(
-          activeSession.provider,
-          activeSession.model,
-          newMessages,
-        )
+        const apiKey = settings?.apiKeys?.[session.provider]
+        const requestId = await window.api.chatSend(session.provider, session.model, allMessages, apiKey)
         setActiveRequestId(requestId)
       } catch (err) {
         console.error('Failed to send message:', err)
         setIsLoading(false)
-        setStreamingContent(null)
-        const errorMsg: ChatMessage = {
-          id: `msg_${Date.now()}`,
-          role: 'system',
-          content: `Error: ${err instanceof Error ? err.message : String(err)}`,
-          timestamp: Date.now(),
-        }
-        setMessages((prev) => [...prev, errorMsg])
       }
     },
-    [activeSessionId, sessions, messages],
+    [activeSessionId, isLoading, messages, sessions, settings],
   )
 
   // Save messages
@@ -309,21 +310,11 @@ export default function App() {
     [activeSessionId],
   )
 
-  // Cancel streaming
-  const handleCancel = useCallback(() => {
-    if (activeRequestId) {
-      window.api.chatCancel(activeRequestId)
-      setIsLoading(false)
-      setActiveRequestId(null)
-      setStreamingContent(null)
-    }
-  }, [activeRequestId])
-
   // Handle "Ask AI" from editor
   const handleEditorAskAI = useCallback((context: { file: string; content: string; selection?: string }) => {
     setCurrentView('chat')
-    if (!panels.chat.open) togglePanel('chat')
-    if (!panels.editor.open) togglePanel('editor')
+    if (!panels.chat.open) togglePanel('chat' as any)
+    if (!panels.editor.open) togglePanel('editor' as any)
 
     const fileName = context.file.split('/').at(-1) || context.file
     const ext = context.file.split('.').at(-1) || ''
@@ -334,58 +325,26 @@ export default function App() {
     setPendingChatMessage(prefix + '\n\n')
   }, [togglePanel, panels])
 
-  // Settings handlers
-  const handleSaveSettings = useCallback(
-    async (updates: Partial<AppSettings>) => {
-      try {
-        await window.api.settingsSet(updates)
-        setSettings((prev) => (prev ? { ...prev, ...updates } : prev))
-      } catch (err) {
-        console.error('Failed to save settings:', err)
-      }
-    },
-    [],
-  )
-
-  const handleSetApiKey = useCallback(async (provider: string, key: string) => {
-    try {
-      return await window.api.authSetApiKey(provider, key)
-    } catch (err) {
-      console.error('Failed to set API key:', err)
-      return false
+  // Cancel streaming
+  const handleCancel = useCallback(() => {
+    if (activeRequestId) {
+      window.api.chatCancel(activeRequestId)
+      setIsLoading(false)
+      setActiveRequestId(null)
+      setStreamingContent(null)
     }
-  }, [])
-
-  const handleDeleteApiKey = useCallback(async (provider: string) => {
-    try {
-      await window.api.authDeleteApiKey(provider)
-    } catch (err) {
-      console.error('Failed to delete API key:', err)
-    }
-  }, [])
+  }, [activeRequestId])
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) || null
-  const pendingToolCallCount = toolCalls.filter((t) => t.status === 'pending').length
 
-  // Compute context window for the active session
+  // Compute context window for active session
   const contextWindow = useMemo(() => {
     if (!activeSession) return undefined
-    const providerInfo = providers.find((p) => p.id === activeSession.provider)
+    const providerInfo = providers.find(p => p.id === activeSession.provider)
     if (!providerInfo) return undefined
     const modelInfo = providerInfo.models.find((m) => m.id === activeSession.model)
     return modelInfo?.contextWindow
   }, [activeSession, providers])
-
-  // Layout context
-  const {
-    panels,
-    togglePanel,
-    setPanelWidth,
-    setTerminalHeight,
-    activeFile,
-    openFile,
-    workspaceRoot,
-  } = useLayout()
 
   return (
     <div
@@ -394,179 +353,78 @@ export default function App() {
         display: 'flex',
         height: '100vh',
         width: '100vw',
-        backgroundColor: '#0d1117',
-        color: '#c9d1d9',
-        fontFamily:
-          "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+        backgroundColor: 'var(--surface-lowest)',
+        color: 'var(--on-surface)',
+        fontFamily: "'Inter', system-ui, sans-serif",
         margin: 0,
         padding: 0,
         overflow: 'hidden',
       }}
     >
       {/* Onboarding Wizard */}
-      {showOnboarding && (
-        <OnboardingWizard
-          onComplete={() => setShowOnboarding(false)}
-          onSkip={() => setShowOnboarding(false)}
-        />
-      )}
+      {showOnboarding && <OnboardingWizard onComplete={() => setShowOnboarding(false)} onSkip={() => setShowOnboarding(false)} />}
 
       {/* Activity Bar */}
-      <ActivityBar />
+      <ActivityBar
+        activeView={currentView}
+        onViewChange={setCurrentView}
+      />
 
-      {/* Sidebar */}
-      {panels.sidebar.open && (
-        <div style={{ width: panels.sidebar.width, flexShrink: 0, overflow: 'hidden', borderRight: '1px solid #21262d' }}>
+      {/* Main content area */}
+      <main style={{ flex: 1, display: 'flex', minWidth: 0, overflow: 'hidden' }}>
+        {/* Session List Sidebar */}
+        <ErrorBoundary context="sidebar">
           <Sidebar
             sessions={sessions}
             activeSessionId={activeSessionId}
             onSelectSession={handleSelectSession}
             onNewSession={handleNewSession}
             onDeleteSession={handleDeleteSession}
-            onOpenSettings={() => setCurrentView('settings')}
             providers={providers}
-            onToggleToolInspector={() => setShowToolInspector((prev) => !prev)}
-            showToolInspector={showToolInspector}
-            pendingToolCallCount={pendingToolCallCount}
-            sessionTokenTotals={sessionTokenTotals}
           />
-        </div>
-      )}
-      {panels.sidebar.open && (
-        <ResizableDivider direction="vertical" onResize={(d) => setPanelWidth('sidebar', panels.sidebar.width + d)} />
-      )}
+        </ErrorBoundary>
 
-      {/* Main area */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-          {/* File Tree */}
-          {panels.fileTree.open && workspaceRoot && (
+        {/* Center area: FileTree + Editor/Chat + Terminal */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          {panels.fileTree.open && (
             <>
-              <div style={{ width: panels.fileTree.width, flexShrink: 0, overflow: 'hidden', borderRight: '1px solid #21262d' }}>
-                <ErrorBoundary context="FileTree">
-                  <FileTree rootPath={workspaceRoot} onFileOpen={openFile} activeFile={activeFile} />
-                </ErrorBoundary>
-              </div>
-              <ResizableDivider direction="vertical" onResize={(d) => setPanelWidth('fileTree', panels.fileTree.width + d)} />
+              <ErrorBoundary context="file-tree">
+                <div style={{ width: panels.fileTree.width, flexShrink: 0, overflow: 'hidden', backgroundColor: 'var(--surface-container-low)' }}>
+                  <FileTree
+                    rootPath={workspaceRoot || ''}
+                    onFileOpen={(path) => { openFile(path); togglePanel('editor' as any) }}
+                    activeFile={activeFile}
+                  />
+                </div>
+              </ErrorBoundary>
+              <ErrorBoundary context="file-tree-divider">
+                <ResizableDivider direction="vertical" onResize={(d) => setPanelWidth('fileTree', panels.fileTree.width + d)} />
+              </ErrorBoundary>
             </>
           )}
 
-          {/* Search Panel */}
-          {panels.search.open && (
-            <>
-              <div style={{ width: panels.search.width, flexShrink: 0, overflow: 'hidden', borderRight: '1px solid #21262d' }}>
-                <ErrorBoundary context="SearchPanel">
-                  <Suspense fallback={<div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8b949e' }}>Loading...</div>}>
-                    <SearchPanel />
-                  </Suspense>
-                </ErrorBoundary>
-              </div>
-              <ResizableDivider direction="vertical" onResize={(d) => setPanelWidth('search', panels.search.width + d)} />
-            </>
-          )}
-
-          {/* Agent Panel */}
-          {panels.agent.open && (
-            <>
-              <div style={{ width: panels.agent.width, flexShrink: 0, overflow: 'hidden', borderRight: '1px solid #21262d' }}>
-                <ErrorBoundary context="AgentView">
-                  <Suspense fallback={<div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8b949e' }}>Loading...</div>}>
-                    <AgentView workspaceRoot={workspaceRoot} />
-                  </Suspense>
-                </ErrorBoundary>
-              </div>
-              <ResizableDivider direction="vertical" onResize={(d) => setPanelWidth('agent', panels.agent.width + d)} />
-            </>
-          )}
-
-          {/* Orchestrator Panel */}
-          {panels.orchestrator.open && (
-            <>
-              <div style={{ width: panels.orchestrator.width, flexShrink: 0, overflow: 'hidden', borderRight: '1px solid #21262d' }}>
-                <ErrorBoundary context="OrchestratorView">
-                  <Suspense fallback={<div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8b949e' }}>Loading...</div>}>
-                    <OrchestratorView />
-                  </Suspense>
-                </ErrorBoundary>
-              </div>
-              <ResizableDivider direction="vertical" onResize={(d) => setPanelWidth('orchestrator', panels.orchestrator.width + d)} />
-            </>
-          )}
-
-          {/* Computer Use Panel */}
-          {panels.computerUse.open && (
-            <>
-              <div style={{ width: panels.computerUse.width, flexShrink: 0, overflow: 'hidden', borderRight: '1px solid #21262d' }}>
-                <ErrorBoundary context="ComputerUseView">
-                  <Suspense fallback={<div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8b949e' }}>Loading...</div>}>
-                    <ComputerUseView />
-                  </Suspense>
-                </ErrorBoundary>
-              </div>
-              <ResizableDivider direction="vertical" onResize={(d) => setPanelWidth('computerUse', panels.computerUse.width + d)} />
-            </>
-          )}
-
-          {/* Memory Browser Panel */}
-          {panels.memoryBrowser.open && (
-            <>
-              <div style={{ width: panels.memoryBrowser.width, flexShrink: 0, overflow: 'hidden', borderRight: '1px solid #21262d' }}>
-                <ErrorBoundary context="MemoryBrowser">
-                  <Suspense fallback={<div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8b949e' }}>Loading...</div>}>
-                    <MemoryBrowser />
-                  </Suspense>
-                </ErrorBoundary>
-              </div>
-              <ResizableDivider direction="vertical" onResize={(d) => setPanelWidth('memoryBrowser', panels.memoryBrowser.width + d)} />
-            </>
-          )}
-
-          {/* Token Dashboard Panel */}
-          {panels.tokenDashboard.open && (
-            <>
-              <div style={{ width: panels.tokenDashboard.width, flexShrink: 0, overflow: 'hidden', borderRight: '1px solid #21262d' }}>
-                <ErrorBoundary context="TokenDashboard">
-                  <Suspense fallback={<div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8b949e' }}>Loading...</div>}>
-                    <TokenDashboard />
-                  </Suspense>
-                </ErrorBoundary>
-              </div>
-              <ResizableDivider direction="vertical" onResize={(d) => setPanelWidth('tokenDashboard', panels.tokenDashboard.width + d)} />
-            </>
-          )}
-
-          {/* Center: Editor if file open, otherwise Chat or Settings */}
+          {/* Center: Editor or Chat */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
             {panels.editor.open && activeFile ? (
-              <>
-                <EditorTabBar />
-                <ErrorBoundary context="CodeEditor">
-                  <CodeEditor
-                    filePath={activeFile}
-                    provider={activeSession?.provider || settings?.defaultProvider || 'openai'}
-                    model={activeSession?.model || settings?.defaultModel || 'gpt-4'}
-                    onAskAI={handleEditorAskAI}
-                  />
-                </ErrorBoundary>
-              </>
-            ) : currentView === 'chat' ? (
-              <ErrorBoundary context="ChatView">
-                <ChatView
-                  session={activeSession}
-                  messages={messages}
-                  onSendMessage={handleSendMessage}
-                  onSaveMessages={handleSaveMessages}
-                  isLoading={isLoading}
-                  onCancel={handleCancel}
-                  streamingContent={streamingContent}
-                  activeToolCalls={toolCalls}
-                  initialMessage={pendingChatMessage}
-                  onMessageSent={() => setPendingChatMessage('')}
-                  contextWindow={contextWindow}
+              <ErrorBoundary context="editor">
+                <EditorTabBar
+                  openFiles={[]}
+                  activeFile={activeFile}
+                  dirtyFiles={new Set()}
+                  onTabClick={() => {}}
+                  onTabClose={() => togglePanel('editor' as any)}
+                  workspaceRoot={workspaceRoot}
+                />
+                <CodeEditor
+                  filePath={activeFile}
+                  provider={activeSession?.provider || settings?.defaultProvider || 'openai'}
+                  model={activeSession?.model || settings?.defaultModel || 'gpt-4o'}
+                  onAskAI={handleEditorAskAI}
+                  onInlineChatToChat={() => {}}
                 />
               </ErrorBoundary>
-            ) : (
-              <ErrorBoundary context="SettingsView">
+            ) : currentView === 'settings' ? (
+              <ErrorBoundary context="settings">
                 <SettingsView
                   settings={settings}
                   providers={providers}
@@ -576,59 +434,112 @@ export default function App() {
                   onBack={() => setCurrentView('chat')}
                 />
               </ErrorBoundary>
+            ) : (
+              <ErrorBoundary context="chat-view">
+                <ChatView
+                  session={activeSession}
+                  messages={messages}
+                  onSendMessage={handleSendMessage}
+                  onSaveMessages={handleSaveMessages}
+                  isLoading={isLoading}
+                  onCancel={handleCancel}
+                  streamingContent={streamingContent}
+                  activeToolCalls={toolCalls}
+                  contextWindow={contextWindow}
+                  initialMessage={pendingChatMessage}
+                  onMessageSent={() => setPendingChatMessage('')}
+                />
+              </ErrorBoundary>
             )}
           </div>
 
-          {/* Chat panel (when editor is not active) */}
-          {panels.chat.open && !panels.editor.open && (
+          {/* Terminal */}
+          {panels.terminal.open && (
             <>
-              <ResizableDivider direction="vertical" onResize={(d) => setPanelWidth('chat', panels.chat.width + d)} />
-              <div style={{ width: panels.chat.width, flexShrink: 0 }}>
-                {currentView === 'chat' ? (
-                  <ErrorBoundary context="ChatView">
-                    <ChatView
-                      session={activeSession}
-                      messages={messages}
-                      onSendMessage={handleSendMessage}
-                      onSaveMessages={handleSaveMessages}
-                      isLoading={isLoading}
-                      onCancel={handleCancel}
-                      streamingContent={streamingContent}
-                      activeToolCalls={toolCalls}
-                      initialMessage={pendingChatMessage}
-                      onMessageSent={() => setPendingChatMessage('')}
-                      contextWindow={contextWindow}
-                    />
-                  </ErrorBoundary>
-                ) : (
-                  <ErrorBoundary context="SettingsView">
-                    <SettingsView
-                      settings={settings}
-                      providers={providers}
-                      onSaveSettings={handleSaveSettings}
-                      onSetApiKey={handleSetApiKey}
-                      onDeleteApiKey={handleDeleteApiKey}
-                      onBack={() => setCurrentView('chat')}
-                    />
-                  </ErrorBoundary>
-                )}
-              </div>
+              <ErrorBoundary context="terminal-divider">
+                <ResizableDivider direction="horizontal" onResize={(d) => setTerminalHeight(panels.terminal.height - d)} />
+              </ErrorBoundary>
+              <ErrorBoundary context="terminal">
+                <div style={{ height: panels.terminal.height, flexShrink: 0 }}>
+                  <TerminalPanel workspaceRoot={workspaceRoot} height={panels.terminal.height} />
+                </div>
+              </ErrorBoundary>
             </>
           )}
         </div>
 
-        {/* Terminal Panel */}
-        {panels.terminal.open && (
+        {/* Right panel: Chat or other views */}
+        {panels.chat.open && currentView === 'chat' && (
           <>
-            <ResizableDivider direction="horizontal" onResize={(d) => setTerminalHeight(panels.terminal.height - d)} />
-            <div style={{ height: panels.terminal.height, flexShrink: 0 }}>
-              <ErrorBoundary context="TerminalPanel">
-                <TerminalPanel workspaceRoot={workspaceRoot} />
-              </ErrorBoundary>
-            </div>
+            <ErrorBoundary context="chat-divider">
+              <ResizableDivider direction="vertical" onResize={(d) => setPanelWidth('chat', panels.chat.width + d)} />
+            </ErrorBoundary>
+            <ErrorBoundary context="chat">
+              <div style={{ width: panels.chat.width, flexShrink: 0 }}>
+                <ChatView
+                  session={activeSession}
+                  messages={messages}
+                  onSendMessage={handleSendMessage}
+                  onSaveMessages={handleSaveMessages}
+                  isLoading={isLoading}
+                  onCancel={handleCancel}
+                  streamingContent={streamingContent}
+                  activeToolCalls={toolCalls}
+                  contextWindow={contextWindow}
+                  initialMessage={pendingChatMessage}
+                  onMessageSent={() => setPendingChatMessage('')}
+                />
+              </div>
+            </ErrorBoundary>
           </>
         )}
-      </div>
+
+        {/* Other panels */}
+        {panels.search.open && (
+          <Suspense fallback={<div style={{ width: panels.search.width, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--on-surface-variant)' }}>Loading...</div>}>
+            <ResizableDivider direction="vertical" onResize={(d) => setPanelWidth('search', panels.search.width + d)} />
+            <div style={{ width: panels.search.width, flexShrink: 0 }}>
+              <SearchPanel />
+            </div>
+          </Suspense>
+        )}
+
+        {panels.orchestrator.open && (
+          <Suspense fallback={<div style={{ width: panels.orchestrator.width, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--on-surface-variant)' }}>Loading...</div>}>
+            <ResizableDivider direction="vertical" onResize={(d) => setPanelWidth('orchestrator', panels.orchestrator.width + d)} />
+            <div style={{ width: panels.orchestrator.width, flexShrink: 0 }}>
+              <OrchestratorView />
+            </div>
+          </Suspense>
+        )}
+
+        {panels.computerUse.open && (
+          <Suspense fallback={<div style={{ width: panels.computerUse.width, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--on-surface-variant)' }}>Loading...</div>}>
+            <ResizableDivider direction="vertical" onResize={(d) => setPanelWidth('computerUse', panels.computerUse.width + d)} />
+            <div style={{ width: panels.computerUse.width, flexShrink: 0 }}>
+              <ComputerUseView />
+            </div>
+          </Suspense>
+        )}
+
+        {panels.memoryBrowser.open && (
+          <Suspense fallback={<div style={{ width: panels.memoryBrowser.width, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--on-surface-variant)' }}>Loading...</div>}>
+            <ResizableDivider direction="vertical" onResize={(d) => setPanelWidth('memoryBrowser', panels.memoryBrowser.width + d)} />
+            <div style={{ width: panels.memoryBrowser.width, flexShrink: 0 }}>
+              <MemoryBrowser />
+            </div>
+          </Suspense>
+        )}
+
+        {panels.tokenDashboard.open && (
+          <Suspense fallback={<div style={{ width: panels.tokenDashboard.width, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--on-surface-variant)' }}>Loading...</div>}>
+            <ResizableDivider direction="vertical" onResize={(d) => setPanelWidth('tokenDashboard', panels.tokenDashboard.width + d)} />
+            <div style={{ width: panels.tokenDashboard.width, flexShrink: 0 }}>
+              <TokenDashboard />
+            </div>
+          </Suspense>
+        )}
+      </main>
 
       {/* Tool Call Inspector */}
       {showToolInspector && (
@@ -654,18 +565,18 @@ export default function App() {
         >
           <div
             style={{
-              backgroundColor: '#161b22',
-              border: '1px solid #30363d',
-              borderRadius: 12,
+              backgroundColor: 'var(--surface-container)',
+              border: '1px solid var(--outline-variant)',
+              borderRadius: 8,
               padding: 24,
               minWidth: 400,
               maxWidth: 500,
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 style={{ margin: '0 0 20px', fontSize: 18, color: '#f0f6fc' }}>New Session</h2>
+            <h2 style={{ margin: '0 0 20px', fontSize: 18, color: 'var(--on-surface)' }}>New Session</h2>
 
-            <label style={{ display: 'block', marginBottom: 6, color: '#8b949e', fontSize: 13 }}>
+            <label style={{ display: 'block', marginBottom: 6, color: 'var(--on-surface-variant)', fontSize: 13 }}>
               Provider
             </label>
             <select
@@ -678,10 +589,10 @@ export default function App() {
               style={{
                 width: '100%',
                 padding: '8px 12px',
-                backgroundColor: '#0d1117',
-                color: '#c9d1d9',
-                border: '1px solid #30363d',
-                borderRadius: 6,
+                backgroundColor: 'var(--surface-lowest)',
+                color: 'var(--on-surface)',
+                border: '1px solid var(--outline-variant)',
+                borderRadius: 4,
                 marginBottom: 16,
                 fontSize: 14,
               }}
@@ -693,7 +604,7 @@ export default function App() {
               ))}
             </select>
 
-            <label style={{ display: 'block', marginBottom: 6, color: '#8b949e', fontSize: 13 }}>
+            <label style={{ display: 'block', marginBottom: 6, color: 'var(--on-surface-variant)', fontSize: 13 }}>
               Model
             </label>
             <select
@@ -702,10 +613,10 @@ export default function App() {
               style={{
                 width: '100%',
                 padding: '8px 12px',
-                backgroundColor: '#0d1117',
-                color: '#c9d1d9',
-                border: '1px solid #30363d',
-                borderRadius: 6,
+                backgroundColor: 'var(--surface-lowest)',
+                color: 'var(--on-surface)',
+                border: '1px solid var(--outline-variant)',
+                borderRadius: 4,
                 marginBottom: 24,
                 fontSize: 14,
               }}
@@ -725,9 +636,9 @@ export default function App() {
                 style={{
                   padding: '8px 20px',
                   backgroundColor: 'transparent',
-                  color: '#8b949e',
-                  border: '1px solid #30363d',
-                  borderRadius: 6,
+                  color: 'var(--on-surface-variant)',
+                  border: '1px solid var(--outline-variant)',
+                  borderRadius: 4,
                   cursor: 'pointer',
                   fontSize: 14,
                 }}
@@ -739,13 +650,16 @@ export default function App() {
                 disabled={!selectedProvider || !selectedModel}
                 style={{
                   padding: '8px 20px',
-                  backgroundColor: '#238636',
-                  color: '#fff',
+                  background: 'linear-gradient(135deg, var(--primary-container) 0%, var(--primary) 100%)',
+                  color: 'var(--on-primary-fixed)',
                   border: 'none',
-                  borderRadius: 6,
+                  borderRadius: 4,
                   cursor: selectedProvider && selectedModel ? 'pointer' : 'not-allowed',
                   fontSize: 14,
                   opacity: selectedProvider && selectedModel ? 1 : 0.5,
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.1em',
                 }}
               >
                 Create
@@ -755,7 +669,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Auto-Updater Notification */}
+      {/* Update Notification */}
       <UpdateNotification />
     </div>
   )

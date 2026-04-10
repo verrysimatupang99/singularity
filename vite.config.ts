@@ -54,21 +54,11 @@ export default defineConfig({
           },
         },
       },
-      {
-        entry: resolve(__dirname, 'src/preload/index.ts'),
-        vite: {
-          build: {
-            outDir: resolve(__dirname, 'dist/preload'),
-            lib: {
-              entry: resolve(__dirname, 'src/preload/index.ts'),
-              formats: ['cjs'],
-            },
-            rollupOptions: {
-              external: ['electron'],
-            },
-          },
-        },
-      },
+      // Preload is built by esbuild in dev.mjs (vite-plugin-electron can't output CJS in dev mode)
+      // {
+      //   entry: resolve(__dirname, 'src/preload/index.ts'),
+      //   vite: { ... },
+      // },
     ]),
     electronRenderer(),
   ],

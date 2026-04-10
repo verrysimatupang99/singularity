@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Singularity — Provider Selection</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Instrument+Serif:ital@0;1&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary-fixed-dim": "#ffb68c",
+                        "surface-dim": "#121314",
+                        "surface-tint": "#72d6de",
+                        "surface-container-highest": "#343536",
+                        "on-surface": "#e3e2e3",
+                        "on-primary-container": "#00383c",
+                        "on-primary-fixed": "#002022",
+                        "on-surface-variant": "#bdc9ca",
+                        "tertiary": "#ffb68c",
+                        "surface-variant": "#343536",
+                        "secondary": "#c6c6c7",
+                        "on-primary-fixed-variant": "#004f54",
+                        "on-secondary-fixed-variant": "#454748",
+                        "surface-container-lowest": "#0d0e0f",
+                        "on-error-container": "#ffdad6",
+                        "primary-container": "#3fa8b0",
+                        "primary-fixed": "#8ff2fa",
+                        "tertiary-fixed": "#ffdbc9",
+                        "error": "#ffb4ab",
+                        "surface-bright": "#39393a",
+                        "inverse-primary": "#00696f",
+                        "secondary-container": "#454748",
+                        "on-secondary-fixed": "#1a1c1d",
+                        "on-secondary-container": "#b4b5b6",
+                        "on-secondary": "#2f3132",
+                        "primary-fixed-dim": "#72d6de",
+                        "on-tertiary-fixed-variant": "#723609",
+                        "tertiary-container": "#d78654",
+                        "primary": "#72d6de",
+                        "on-error": "#690005",
+                        "outline": "#879394",
+                        "on-primary": "#00363a",
+                        "error-container": "#93000a",
+                        "surface-container-high": "#292a2b",
+                        "inverse-surface": "#e3e2e3",
+                        "on-tertiary-fixed": "#321200",
+                        "background": "#121314",
+                        "secondary-fixed": "#e2e2e3",
+                        "secondary-fixed-dim": "#c6c6c7",
+                        "outline-variant": "#3e494a",
+                        "on-tertiary": "#532200",
+                        "inverse-on-surface": "#303031",
+                        "on-background": "#e3e2e3",
+                        "surface-container": "#1f2021",
+                        "surface": "#121314",
+                        "surface-container-low": "#1b1c1d",
+                        "on-tertiary-container": "#552400"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Instrument Serif", "serif"],
+                        "body": ["Inter", "sans-serif"],
+                        "label": ["Inter", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .glass-panel {
+            background: rgba(41, 42, 43, 0.8);
+            backdrop-filter: blur(20px);
+        }
+        .lithium-glow {
+            background: linear-gradient(135deg, #3fa8b0 0%, #72d6de 100%);
+        }
+        .signature-tint-claude { border-left: 2px solid rgba(175, 110, 255, 0.3); }
+        .signature-tint-openai { border-left: 2px solid rgba(16, 163, 127, 0.3); }
+        .signature-tint-gemini { border-left: 2px solid rgba(26, 115, 232, 0.3); }
+        .signature-tint-github { border-left: 2px solid rgba(255, 255, 255, 0.3); }
+    </style>
+</head>
+<body class="bg-surface-container-lowest text-on-surface font-body selection:bg-primary/30">
+<!-- Ambient Background Glows -->
+<div class="fixed inset-0 overflow-hidden pointer-events-none">
+<div class="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-primary/5 blur-[120px]"></div>
+<div class="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-primary/5 blur-[150px]"></div>
+</div>
+<!-- Main Navigation Suppressed for Onboarding (Transactional Flow) -->
+<main class="relative min-h-screen flex flex-col items-center justify-center p-6 md:p-12">
+<!-- Header Section -->
+<header class="mb-12 text-center max-w-2xl">
+<h1 class="font-headline italic text-5xl md:text-7xl text-on-surface tracking-tight mb-4">
+                The Glasswing Protocol
+            </h1>
+<p class="text-on-surface-variant font-medium tracking-wide uppercase text-[0.6875rem]">
+                Singularity Onboarding — Sequence 02
+            </p>
+</header>
+<!-- Central Card Container -->
+<div class="w-full max-w-5xl glass-panel border border-outline-variant/20 rounded-lg overflow-hidden shadow-2xl">
+<div class="p-8 md:p-12 border-b border-outline-variant/10">
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-6">
+<div>
+<h2 class="font-headline text-3xl md:text-4xl text-on-surface mb-2">Choose your AI engines</h2>
+<p class="text-on-surface-variant text-sm max-w-md">Select the primary models to power your development cycle. You can swap providers dynamically within the editor.</p>
+</div>
+<!-- Progress Dots -->
+<div class="flex items-center gap-3 pb-2">
+<div class="w-2 h-2 rounded-full bg-on-surface/20"></div>
+<div class="w-8 h-1 rounded-full lithium-glow"></div>
+<div class="w-2 h-2 rounded-full bg-on-surface/20"></div>
+</div>
+</div>
+</div>
+<!-- Provider Grid -->
+<div class="p-8 md:p-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+<!-- Anthropic (Selected) -->
+<button class="relative flex flex-col p-6 rounded-lg bg-surface border-l-2 border-primary ring-1 ring-primary/30 transition-all text-left">
+<div class="flex justify-between items-start mb-6">
+<div class="w-10 h-10 rounded-sm bg-surface-container-high flex items-center justify-center">
+<span class="material-symbols-outlined text-primary text-2xl" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+</div>
+<span class="text-[0.6rem] uppercase tracking-widest font-bold text-primary">Active</span>
+</div>
+<h3 class="text-lg font-medium text-on-surface mb-1">Anthropic</h3>
+<p class="text-xs text-on-surface-variant mb-4">Claude 3.5 Sonnet</p>
+<div class="mt-auto flex items-center gap-2">
+<span class="material-symbols-outlined text-xs text-primary">key</span>
+<span class="text-[0.6875rem] font-label uppercase text-on-surface-variant">Key Configured</span>
+</div>
+</button>
+<!-- OpenAI -->
+<button class="relative flex flex-col p-6 rounded-lg bg-surface-container-low border-l-2 border-transparent hover:bg-surface-container-high transition-all text-left signature-tint-openai">
+<div class="flex justify-between items-start mb-6">
+<div class="w-10 h-10 rounded-sm bg-surface-container-high flex items-center justify-center">
+<span class="material-symbols-outlined text-on-surface-variant text-2xl">neurology</span>
+</div>
+</div>
+<h3 class="text-lg font-medium text-on-surface mb-1">OpenAI</h3>
+<p class="text-xs text-on-surface-variant mb-4">GPT-4o Omniscience</p>
+<div class="mt-auto flex items-center gap-2">
+<span class="material-symbols-outlined text-xs text-error">warning</span>
+<span class="text-[0.6875rem] font-label uppercase text-on-surface-variant">API Key Required</span>
+</div>
+</button>
+<!-- Gemini -->
+<button class="relative flex flex-col p-6 rounded-lg bg-surface-container-low border-l-2 border-transparent hover:bg-surface-container-high transition-all text-left signature-tint-gemini">
+<div class="flex justify-between items-start mb-6">
+<div class="w-10 h-10 rounded-sm bg-surface-container-high flex items-center justify-center">
+<span class="material-symbols-outlined text-on-surface-variant text-2xl">diamond</span>
+</div>
+</div>
+<h3 class="text-lg font-medium text-on-surface mb-1">Google Gemini</h3>
+<p class="text-xs text-on-surface-variant mb-4">Pro 1.5 Flash</p>
+<div class="mt-auto flex items-center gap-2">
+<span class="material-symbols-outlined text-xs text-error">warning</span>
+<span class="text-[0.6875rem] font-label uppercase text-on-surface-variant">API Key Required</span>
+</div>
+</button>
+<!-- GitHub Copilot -->
+<button class="relative flex flex-col p-6 rounded-lg bg-surface-container-low border-l-2 border-transparent hover:bg-surface-container-high transition-all text-left signature-tint-github">
+<div class="flex justify-between items-start mb-6">
+<div class="w-10 h-10 rounded-sm bg-surface-container-high flex items-center justify-center">
+<span class="material-symbols-outlined text-on-surface-variant text-2xl">code_blocks</span>
+</div>
+</div>
+<h3 class="text-lg font-medium text-on-surface mb-1">GitHub Copilot</h3>
+<p class="text-xs text-on-surface-variant mb-4">Enterprise Engine</p>
+<div class="mt-auto flex items-center gap-2">
+<span class="material-symbols-outlined text-xs text-on-surface-variant">link</span>
+<span class="text-[0.6875rem] font-label uppercase text-on-surface-variant">SSO Required</span>
+</div>
+</button>
+<!-- Qwen -->
+<button class="relative flex flex-col p-6 rounded-lg bg-surface-container-low border-l-2 border-transparent hover:bg-surface-container-high transition-all text-left">
+<div class="flex justify-between items-start mb-6">
+<div class="w-10 h-10 rounded-sm bg-surface-container-high flex items-center justify-center">
+<span class="material-symbols-outlined text-on-surface-variant text-2xl">memory</span>
+</div>
+</div>
+<h3 class="text-lg font-medium text-on-surface mb-1">Qwen</h3>
+<p class="text-xs text-on-surface-variant mb-4">Alibaba Cloud AI</p>
+<div class="mt-auto flex items-center gap-2">
+<span class="material-symbols-outlined text-xs text-error">warning</span>
+<span class="text-[0.6875rem] font-label uppercase text-on-surface-variant">API Key Required</span>
+</div>
+</button>
+<!-- OpenRouter -->
+<button class="relative flex flex-col p-6 rounded-lg bg-surface-container-low border-l-2 border-transparent hover:bg-surface-container-high transition-all text-left">
+<div class="flex justify-between items-start mb-6">
+<div class="w-10 h-10 rounded-sm bg-surface-container-high flex items-center justify-center">
+<span class="material-symbols-outlined text-on-surface-variant text-2xl">hub</span>
+</div>
+</div>
+<h3 class="text-lg font-medium text-on-surface mb-1">OpenRouter</h3>
+<p class="text-xs text-on-surface-variant mb-4">Unified Inference API</p>
+<div class="mt-auto flex items-center gap-2">
+<span class="material-symbols-outlined text-xs text-on-surface-variant">radio</span>
+<span class="text-[0.6875rem] font-label uppercase text-on-surface-variant">Ready to Connect</span>
+</div>
+</button>
+<!-- CLI / Local -->
+<button class="relative flex flex-col p-6 rounded-lg bg-surface-container-low border-l-2 border-transparent hover:bg-surface-container-high transition-all text-left lg:col-span-1">
+<div class="flex justify-between items-start mb-6">
+<div class="w-10 h-10 rounded-sm bg-surface-container-high flex items-center justify-center">
+<span class="material-symbols-outlined text-on-surface-variant text-2xl">terminal</span>
+</div>
+</div>
+<h3 class="text-lg font-medium text-on-surface mb-1">Local CLI</h3>
+<p class="text-xs text-on-surface-variant mb-4">Ollama / Llama.cpp</p>
+<div class="mt-auto flex items-center gap-2">
+<span class="material-symbols-outlined text-xs text-on-surface-variant">lan</span>
+<span class="text-[0.6875rem] font-label uppercase text-on-surface-variant">Localhost:11434</span>
+</div>
+</button>
+</div>
+<!-- Footer Controls -->
+<div class="px-8 py-6 md:px-12 md:py-8 bg-surface-container-low flex flex-col sm:flex-row items-center justify-between gap-6 border-t border-outline-variant/10">
+<div class="hidden sm:flex items-center gap-4">
+<span class="material-symbols-outlined text-on-surface-variant text-sm">shield_person</span>
+<p class="text-[0.6rem] font-label uppercase tracking-widest text-on-surface-variant">Data encryption protocols active</p>
+</div>
+<div class="flex items-center gap-3 w-full sm:w-auto">
+<button class="flex-1 sm:flex-none px-8 py-3 rounded-sm font-label text-[0.6875rem] uppercase font-bold tracking-[0.1em] text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-colors">
+                        Back
+                    </button>
+<button class="flex-1 sm:flex-none lithium-glow px-10 py-3 rounded-sm font-label text-[0.6875rem] uppercase font-bold tracking-[0.1em] text-on-primary-fixed shadow-lg shadow-primary/20 active:scale-95 transition-transform">
+                        Continue
+                    </button>
+</div>
+</div>
+</div>
+<!-- System Context Decorator -->
+<div class="mt-12 flex items-center gap-8 opacity-40 grayscale hover:grayscale-0 transition-all">
+<img alt="Anthropic" class="h-6 w-auto" data-alt="minimalist anthropic logo icon in white on dark background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDMib6Sg9VwYYZwRoEa6JN6nAOu8QmEY2i2lNCQflA_5KAfE-AadLp1iFFPmdxYFnv94GRRlSR_qUV3afeqEdXgsJvOcN6Bvgw5Cx0JKX6o1ZVYGa5a7aUU1rnLs1rTyZDBM8OMQSXku-kkQxzHKA94-Q55dYREM2WEq-HugqTfFaquX6jvNAkcHRVxiZdVTrlYcZuTU2nsv27tn5nMseo0L7VUzH6Nr4H8cHDzHPQimQY5vFBUUVG7J_T0ZPK-4-fnbv6rCjOngXo"/>
+<img alt="OpenAI" class="h-6 w-auto" data-alt="minimalist openai logo icon in white on dark background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCaS8Al0ySiWe_diVeUdxH-LRIsRjb9iEs1P1BdEZmLDf4UFYyEZkC9QqIf3I5CGsnAaW_jmB9gwkt97Neh-RRY_44ut8WqfBAdtkXPvHDL06TiUkPUoUKqsPadgdd-0rQSuCDP2qMvWBFJFz_lvQlo_xWw89SIUNUzoPZMMRLLrPP_xw39-2ubZHZTixLdfzJAe3UaPMWDHiL3xdKAXfCujqq9--6uJH4__MwGS-BskQ1GFp70U1bc4z6MReRqfW-5gX34oh4vpRo"/>
+<img alt="Gemini" class="h-6 w-auto" data-alt="minimalist google gemini logo icon in white on dark background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDgjoOReVea3W1X6LpC6odaNJal68qjCt_gJN8AeQ5bHORnnrsnP-uQOabJKZFgYa5NGJqk7eM-DZjfBSDlfNx703Z4GKAOWuEqXHZKFJpfQUlKIArpgXRx8uM4Nibo7gKORfELdWytInq4pEzJHoyzAXMd-zbJ6oo4MrRbYegP7bNuaPnp-QcjmxsV64x9SLFwlkXF_jTgUFyXMLhiJGqKQ9TPXnyfCERUUEca4XkkWEeOBisfxKgBFrWnHKpeqHsDsxiZbIMfNW8"/>
+<img alt="GitHub" class="h-6 w-auto" data-alt="minimalist github logo icon in white on dark background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA575_vER49Z5SJ0jB5KO3Fn4u3g_OMbNbANw7tkcJL7mdW2r9J2xMs0jmywkzUuZZXYfndoCZzRXf0M2pH39A4dhTP_38fv4o4tbXZuTOBv2fSiWlJSPGYWztDZ7Gw3O0jWf1olhRP-2L4L4aR4tUrRu610PnmL8ZOVV1caq3bSzNsleWyvPoqWPkUllW-I0mNMXbZylS7qLwCi5PTEerJaFHrRyVMVy7L8-LunC4469EHneqg8X9EDIv8AoezPfwZvxs7FoN85Qw"/>
+</div>
+</main>
+</body></html>

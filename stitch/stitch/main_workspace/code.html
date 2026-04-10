@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Singularity | The Glasswing Protocol</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;family=Instrument+Serif:ital@0;1&amp;family=Newsreader:opsz,wght@6-72,400;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary-fixed-dim": "#ffb68c",
+                        "surface-dim": "#121314",
+                        "surface-tint": "#72d6de",
+                        "surface-container-highest": "#343536",
+                        "on-surface": "#e3e2e3",
+                        "on-primary-container": "#00383c",
+                        "on-primary-fixed": "#002022",
+                        "on-surface-variant": "#bdc9ca",
+                        "tertiary": "#ffb68c",
+                        "surface-variant": "#343536",
+                        "secondary": "#c6c6c7",
+                        "on-primary-fixed-variant": "#004f54",
+                        "on-secondary-fixed-variant": "#454748",
+                        "surface-container-lowest": "#0d0e0f",
+                        "on-error-container": "#ffdad6",
+                        "primary-container": "#3fa8b0",
+                        "primary-fixed": "#8ff2fa",
+                        "tertiary-fixed": "#ffdbc9",
+                        "error": "#ffb4ab",
+                        "surface-bright": "#39393a",
+                        "inverse-primary": "#00696f",
+                        "secondary-container": "#454748",
+                        "on-secondary-fixed": "#1a1c1d",
+                        "on-secondary-container": "#b4b5b6",
+                        "on-secondary": "#2f3132",
+                        "primary-fixed-dim": "#72d6de",
+                        "on-tertiary-fixed-variant": "#723609",
+                        "tertiary-container": "#d78654",
+                        "primary": "#72d6de",
+                        "on-error": "#690005",
+                        "outline": "#879394",
+                        "on-primary": "#00363a",
+                        "error-container": "#93000a",
+                        "surface-container-high": "#292a2b",
+                        "inverse-surface": "#e3e2e3",
+                        "on-tertiary-fixed": "#321200",
+                        "background": "#121314",
+                        "secondary-fixed": "#e2e2e3",
+                        "secondary-fixed-dim": "#c6c6c7",
+                        "outline-variant": "#3e494a",
+                        "on-tertiary": "#532200",
+                        "inverse-on-surface": "#303031",
+                        "on-background": "#e3e2e3",
+                        "surface-container": "#1f2021",
+                        "surface": "#121314",
+                        "surface-container-low": "#1b1c1d",
+                        "on-tertiary-container": "#552400"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Newsreader"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #0d0e0f;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #292a2b;
+        }
+        .glass-panel {
+            background: rgba(41, 42, 43, 0.8);
+            backdrop-filter: blur(20px);
+        }
+        .cursor-blink {
+            animation: blink 1s step-end infinite;
+        }
+        @keyframes blink {
+            from, to { opacity: 1; }
+            50% { opacity: 0; }
+        }
+    </style>
+</head>
+<body class="bg-surface-container-lowest text-on-surface font-body h-screen flex flex-col overflow-hidden">
+<!-- TopAppBar -->
+<header class="flex justify-between items-center w-full px-4 h-10 border-none bg-[#0d0e0f] dark:bg-[#0d0e0f] z-50">
+<div class="flex items-center gap-4">
+<span class="font-['Instrument_Serif'] text-lg text-[#72d6de]">Glasswing</span>
+<nav class="flex gap-3">
+<span class="font-['Inter'] text-[0.8rem] font-medium text-[#72d6de] cursor-default">File</span>
+<span class="font-['Inter'] text-[0.8rem] font-medium text-[#bdc9ca] hover:bg-[#292a2b] px-1 transition-all cursor-default">Edit</span>
+<span class="font-['Inter'] text-[0.8rem] font-medium text-[#bdc9ca] hover:bg-[#292a2b] px-1 transition-all cursor-default">Selection</span>
+<span class="font-['Inter'] text-[0.8rem] font-medium text-[#bdc9ca] hover:bg-[#292a2b] px-1 transition-all cursor-default">View</span>
+<span class="font-['Inter'] text-[0.8rem] font-medium text-[#bdc9ca] hover:bg-[#292a2b] px-1 transition-all cursor-default">Go</span>
+<span class="font-['Inter'] text-[0.8rem] font-medium text-[#bdc9ca] hover:bg-[#292a2b] px-1 transition-all cursor-default">Run</span>
+</nav>
+</div>
+<div class="flex-1 max-w-xl mx-4">
+<div class="bg-surface-container-low px-3 py-1 flex items-center gap-2 rounded-sm border border-outline-variant/20">
+<span class="material-symbols-outlined text-sm opacity-60">search</span>
+<span class="text-[0.75rem] text-on-surface-variant">Singularity — auth-service.ts</span>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex gap-1">
+<span class="material-symbols-outlined text-sm text-[#bdc9ca] hover:bg-[#292a2b] p-1 cursor-default">minimize</span>
+<span class="material-symbols-outlined text-sm text-[#bdc9ca] hover:bg-[#292a2b] p-1 cursor-default">fullscreen</span>
+<span class="material-symbols-outlined text-sm text-[#bdc9ca] hover:bg-[#292a2b] p-1 cursor-default">close</span>
+</div>
+</div>
+</header>
+<div class="flex flex-1 overflow-hidden">
+<!-- SideNavBar (Activity Bar) -->
+<aside class="fixed left-0 top-0 h-full flex flex-col items-center py-4 z-50 bg-[#0d0e0f] dark:bg-[#0d0e0f] border-none w-16">
+<div class="mb-8 font-['Instrument_Serif'] italic text-xl text-[#72d6de]">G</div>
+<div class="flex flex-col items-center gap-6 w-full">
+<div class="flex flex-col items-center gap-1 opacity-60 hover:opacity-100 transition-opacity cursor-pointer">
+<span class="material-symbols-outlined">folder_open</span>
+<span class="font-['Inter'] text-[0.6875rem] uppercase tracking-[0.05em] font-medium">Files</span>
+</div>
+<div class="flex flex-col items-center gap-1 text-[#72d6de] border-l-2 border-[#72d6de] bg-[#121314] w-full py-2 cursor-pointer">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">chat_bubble</span>
+<span class="font-['Inter'] text-[0.6875rem] uppercase tracking-[0.05em] font-medium">Chat</span>
+</div>
+<div class="flex flex-col items-center gap-1 opacity-60 hover:opacity-100 transition-opacity cursor-pointer">
+<span class="material-symbols-outlined">search</span>
+<span class="font-['Inter'] text-[0.6875rem] uppercase tracking-[0.05em] font-medium">Search</span>
+</div>
+<div class="flex flex-col items-center gap-1 opacity-60 hover:opacity-100 transition-opacity cursor-pointer">
+<span class="material-symbols-outlined">extension</span>
+<span class="font-['Inter'] text-[0.6875rem] uppercase tracking-[0.05em] font-medium">MCP</span>
+</div>
+<div class="mt-auto flex flex-col items-center gap-6">
+<div class="flex flex-col items-center gap-1 opacity-60 hover:opacity-100 transition-opacity cursor-pointer">
+<span class="material-symbols-outlined">memory</span>
+<span class="font-['Inter'] text-[0.6875rem] uppercase tracking-[0.05em] font-medium">Memory</span>
+</div>
+<div class="flex flex-col items-center gap-1 opacity-60 hover:opacity-100 transition-opacity cursor-pointer">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-['Inter'] text-[0.6875rem] uppercase tracking-[0.05em] font-medium">Settings</span>
+</div>
+</div>
+</div>
+</aside>
+<!-- Sidebar (B): Session List -->
+<main class="ml-16 flex w-full overflow-hidden">
+<section class="w-64 bg-surface-container-low flex flex-col shrink-0">
+<div class="p-4 flex justify-between items-center">
+<h2 class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Sessions</h2>
+<span class="material-symbols-outlined text-sm text-primary cursor-pointer">add</span>
+</div>
+<div class="flex-1 overflow-y-auto custom-scrollbar">
+<div class="px-2 space-y-1">
+<div class="p-2 bg-surface text-on-surface border-l-2 border-primary flex items-center gap-3 rounded-sm">
+<div class="w-5 h-5 rounded-full flex items-center justify-center bg-outline-variant/10">
+<img alt="Claude" class="w-3 h-3 opacity-80" data-alt="Claude AI logomark with minimalist geometric lines and deep purple accent" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDwDnZ2fFf52ZAexrrJYhmagOV5k5nO_CPY2gKXZKlZmq6iv7bMElRavccV520gmxNWAqZVTmGL1oxFqv6lX8MWiQdmWYMqqrlI0GIAP3rFPTIFK9SO1ltCc4yt3y6VCoiX4kRep_ZG1h5bm7h0VfVw6ms8YEZ_Y1poNBjfNyKZtpu2bhuZHXvN6EEzY1k-_7r-iBQ5C4ah_pcvM8407s22adRfIRHB1ZpuaK24bSIoLAFMZD6NTEAd1QUKWEmAT30LS36GhOYWa-c"/>
+</div>
+<div class="flex-1 min-w-0">
+<div class="text-sm font-medium truncate">Project X Refactor</div>
+<div class="text-[0.65rem] text-on-surface-variant/60">Claude 3.5 Sonnet • 2m ago</div>
+</div>
+</div>
+<div class="p-2 hover:bg-surface-container-high transition-colors flex items-center gap-3 rounded-sm cursor-pointer opacity-60 hover:opacity-100">
+<div class="w-5 h-5 rounded-full flex items-center justify-center bg-outline-variant/10">
+<img alt="GPT-4" class="w-3 h-3 opacity-80" data-alt="OpenAI logo with clean white circular motif on dark grey background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBYwH5ux2QGgBfX2SpZuXgzYkDwWRDb2ZAwZO_CRxMesyRjrnCMqp7DUqb6LnQNeA0aWuDCD1E8UIl0f8pK3bk3t4u8lygjhlzuK-csMseku1doo0sYB1DU3YzgiwxDdeyr_c12IVvLtcVDO_6dUJXtys5bYKfX_91ytLJ7edJ3EhqWCRvSt7APrI0PoxQjXuGnjFO_fbbb8XoWgeLNkCFy0XOUR6V9btPnDjoLigu_KkJ3Ss2Xuo-CvZ6vmBfSFBsAEp6LrLEwIck"/>
+</div>
+<div class="flex-1 min-w-0">
+<div class="text-sm font-medium truncate">API Endpoint Security</div>
+<div class="text-[0.65rem] text-on-surface-variant/60">GPT-4o • 1h ago</div>
+</div>
+</div>
+<div class="p-2 hover:bg-surface-container-high transition-colors flex items-center gap-3 rounded-sm cursor-pointer opacity-60 hover:opacity-100">
+<div class="w-5 h-5 rounded-full flex items-center justify-center bg-outline-variant/10">
+<img alt="Gemini" class="w-3 h-3 opacity-80" data-alt="Google Gemini sparkle icon with blue and violet gradient glow" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBF198HR9wXf412ieJP6lcypAFZFyZJd2RPCIV_x-NNSiOyOFc8h_hi454uHRZjEqdvVGPZPJHyebVj-7Z8E88-HsX3H6LFSOAlE95k3M1xv8gM67aNRdtZnMqLO4tqopTrI2hKfPBWgDJKFtccnH9-_ynxryYz5lNY25S1YLXy9cWx5GHv43QoMisoULm_Hjf_5_B1i4YZNLJR90rkNHNHKzRRglSKl1XQ_ohkGVd4jjbMAKXw4JOfmR88ApNtjeMVv0LD6DTdXSc"/>
+</div>
+<div class="flex-1 min-w-0">
+<div class="text-sm font-medium truncate">Mobile Responsiveness Fix</div>
+<div class="text-[0.65rem] text-on-surface-variant/60">Gemini Pro • 4h ago</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Main Editor (C) & Terminal (E) -->
+<section class="flex-1 flex flex-col bg-surface overflow-hidden">
+<!-- Editor Tabs -->
+<div class="flex items-center h-9 bg-surface-container-lowest gap-[1px]">
+<div class="bg-surface px-4 h-full flex items-center gap-2 border-t-2 border-primary">
+<span class="material-symbols-outlined text-xs text-[#3fa8b0]">description</span>
+<span class="text-[0.75rem] font-medium">auth-service.ts</span>
+<span class="material-symbols-outlined text-[10px] opacity-40 hover:opacity-100 cursor-pointer">close</span>
+</div>
+<div class="bg-surface-container-lowest px-4 h-full flex items-center gap-2 opacity-50 hover:opacity-100 transition-opacity cursor-pointer">
+<span class="material-symbols-outlined text-xs text-on-surface-variant">terminal</span>
+<span class="text-[0.75rem] font-medium">package.json</span>
+</div>
+</div>
+<!-- Editor Surface -->
+<div class="flex-1 flex overflow-hidden">
+<div class="w-12 bg-surface-container-lowest text-on-surface-variant/30 text-[0.7rem] text-right pr-3 pt-4 select-none font-mono">
+                        1<br/>2<br/>3<br/>4<br/>5<br/>6<br/>7<br/>8<br/>9<br/>10<br/>11<br/>12<br/>13<br/>14<br/>15
+                    </div>
+<div class="flex-1 p-4 font-mono text-sm leading-relaxed overflow-y-auto custom-scrollbar">
+<pre class="whitespace-pre-wrap"><span class="text-[#c6c6c7] opacity-60">import</span> { <span class="text-primary">AuthClient</span> } from <span class="text-tertiary-container">'@internal/security'</span>;
+
+<span class="text-[#c6c6c7] opacity-60">export async function</span> <span class="text-primary-fixed">login</span>(payload: <span class="text-primary">LoginCredentials</span>) {
+  <span class="text-[#c6c6c7] opacity-60">const</span> client = <span class="text-[#c6c6c7] opacity-60">new</span> <span class="text-primary">AuthClient</span>({
+    endpoint: process.env.<span class="text-tertiary">AUTH_SERVICE_URL</span>,
+    timeout: <span class="text-tertiary-container">5000</span>
+  });
+
+  <span class="text-[#c6c6c7] opacity-60">try</span> {
+    <span class="text-[#c6c6c7] opacity-60">const</span> session = <span class="text-[#c6c6c7] opacity-60">await</span> client.authenticate(payload);
+    <span class="text-[#c6c6c7] opacity-60">return</span> session;
+  } <span class="text-[#c6c6c7] opacity-60">catch</span> (err) {
+    <span class="text-error">console</span>.error(<span class="text-tertiary-container">'Authentication failed'</span>, err);
+    <span class="text-[#c6c6c7] opacity-60">throw new</span> <span class="text-primary">AuthError</span>(err.<span class="text-secondary">message</span>);
+  }
+}</pre>
+</div>
+</div>
+<!-- Terminal Panel (E) -->
+<div class="h-48 bg-surface-container-lowest flex flex-col border-t border-outline-variant/10">
+<div class="flex items-center justify-between px-4 h-8 shrink-0">
+<div class="flex items-center gap-4">
+<span class="text-[0.6875rem] font-bold uppercase tracking-widest text-primary border-b border-primary h-full flex items-center">Terminal</span>
+<span class="text-[0.6875rem] font-medium text-on-surface-variant/40 hover:text-on-surface-variant transition-colors cursor-pointer uppercase tracking-widest h-full flex items-center">Output</span>
+<span class="text-[0.6875rem] font-medium text-on-surface-variant/40 hover:text-on-surface-variant transition-colors cursor-pointer uppercase tracking-widest h-full flex items-center">Debug Console</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-sm opacity-40 hover:opacity-100 cursor-pointer">add</span>
+<span class="material-symbols-outlined text-sm opacity-40 hover:opacity-100 cursor-pointer">delete</span>
+</div>
+</div>
+<div class="flex-1 p-3 font-mono text-[0.75rem] text-on-surface-variant overflow-y-auto custom-scrollbar">
+<div class="mb-1"><span class="text-primary">➜</span> <span class="text-secondary">singularity-v2</span> <span class="text-tertiary-container">git:(main)</span> <span class="text-on-surface">npm run dev</span></div>
+<div class="opacity-80">
+                            [vite] dev server running at: <br/>
+                            &gt; Local: <span class="text-primary">http://localhost:5173/</span> <br/>
+                            &gt; Network: use --host to expose <br/>
+                            [vite] hmr update: <span class="text-primary-container">auth-service.ts</span> <br/>
+<span class="text-on-surface-variant/60">Compiling internal/security dependencies... Done in 142ms</span>
+</div>
+</div>
+</div>
+</section>
+<!-- AI Chat Panel (D) -->
+<section class="w-[420px] bg-surface-container-low flex flex-col overflow-hidden relative">
+<!-- Chat Header -->
+<div class="p-4 border-b border-outline-variant/10">
+<div class="flex items-center justify-between mb-3">
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-primary shadow-[0_0_8px_rgba(114,214,222,0.6)]"></div>
+<h3 class="text-xs font-bold uppercase tracking-widest">Claude 3.5 Sonnet</h3>
+</div>
+<span class="material-symbols-outlined text-lg opacity-40 hover:opacity-100 cursor-pointer">more_horiz</span>
+</div>
+<!-- Context Meter -->
+<div class="space-y-1.5">
+<div class="flex justify-between text-[0.65rem] font-medium uppercase tracking-tighter opacity-60">
+<span>Context Tokens</span>
+<span class="text-[#ffd700]">65% utilized</span>
+</div>
+<div class="h-1 w-full bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-[#ffd700] w-[65%] shadow-[0_0_4px_rgba(255,215,0,0.4)]"></div>
+</div>
+</div>
+</div>
+<!-- Messages -->
+<div class="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-6">
+<!-- User Message -->
+<div class="flex flex-col gap-2">
+<div class="flex items-center gap-2 opacity-40">
+<span class="material-symbols-outlined text-sm">person</span>
+<span class="text-[0.65rem] font-bold uppercase tracking-widest">User</span>
+</div>
+<div class="text-sm bg-surface-container-high/40 p-3 rounded-lg border border-outline-variant/5">
+                            How do I optimize the database query for the auth-service? I feel like the current wait time is too high.
+                        </div>
+</div>
+<!-- AI Message (Responding) -->
+<div class="flex flex-col gap-3">
+<div class="flex items-center gap-2 opacity-80 text-primary">
+<span class="material-symbols-outlined text-sm">auto_awesome</span>
+<span class="text-[0.65rem] font-bold uppercase tracking-widest">Claude</span>
+</div>
+<div class="text-sm space-y-4">
+<p class="text-on-surface-variant leading-relaxed">
+                                To optimize the authentication query, you should implement connection pooling and specify only the necessary fields in the select statement.
+                            </p>
+<!-- Diff Block -->
+<div class="rounded-lg overflow-hidden border border-[#552400]/30 bg-[#0d0e0f]">
+<div class="bg-surface-container-highest/50 px-3 py-1 flex items-center justify-between">
+<span class="text-[0.65rem] font-mono opacity-60">db-adapter.ts — Diff</span>
+<span class="material-symbols-outlined text-sm opacity-40">content_copy</span>
+</div>
+<div class="p-3 font-mono text-xs space-y-1">
+<div class="bg-error-container/20 text-error -mx-3 px-3">- const user = await db.users.find(id);</div>
+<div class="bg-primary-container/20 text-primary -mx-3 px-3">+ const user = await db.users.find({</div>
+<div class="bg-primary-container/20 text-primary -mx-3 px-3">+   where: { id },</div>
+<div class="bg-primary-container/20 text-primary -mx-3 px-3">+   select: { id: true, hash: true, status: true }</div>
+<div class="bg-primary-container/20 text-primary -mx-3 px-3">+ });</div>
+</div>
+</div>
+<!-- Streaming Text -->
+<p class="text-on-surface-variant leading-relaxed">
+                                Additionally, consider adding a database index on the <code class="bg-surface-container-highest px-1 rounded-sm text-primary">email</code> field if you haven't already. This will reduce lookup complexity from O(n) to O(log n).<span class="inline-block w-1 h-4 bg-primary align-middle ml-1 cursor-blink"></span>
+</p>
+</div>
+</div>
+</div>
+<!-- Input Area -->
+<div class="p-4 border-t border-outline-variant/10">
+<div class="bg-surface-container-lowest p-3 rounded-lg border border-outline-variant/20 focus-within:border-primary/60 transition-all">
+<textarea class="w-full bg-transparent border-none focus:ring-0 text-sm resize-none h-20 custom-scrollbar" placeholder="Ask anything about Project X..."></textarea>
+<div class="flex justify-between items-center mt-2">
+<div class="flex gap-2">
+<span class="material-symbols-outlined text-sm opacity-40 hover:opacity-100 cursor-pointer">attach_file</span>
+<span class="material-symbols-outlined text-sm opacity-40 hover:opacity-100 cursor-pointer">image</span>
+</div>
+<div class="bg-gradient-to-br from-primary-container to-primary px-3 py-1.5 rounded-sm flex items-center gap-2 cursor-pointer shadow-[0_4px_12px_rgba(114,214,222,0.2)] hover:scale-[1.02] active:scale-95 transition-transform">
+<span class="text-[0.7rem] font-bold uppercase tracking-widest text-on-primary-fixed">Send</span>
+<span class="material-symbols-outlined text-sm text-on-primary-fixed" style="font-variation-settings: 'FILL' 1;">send</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+</div>
+<!-- Floating Empty State Moment for Brand -->
+<div class="fixed bottom-12 right-[440px] pointer-events-none opacity-5 group">
+<h1 class="font-headline italic text-8xl tracking-tighter">Singularity</h1>
+</div>
+</body></html>

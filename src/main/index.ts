@@ -49,8 +49,9 @@ import { pluginLoader } from './services/pluginLoader.js'
 import { computerUseController } from './services/computerUse.js'
 import { setupAutoUpdater } from './services/updater.js'
 
-// Fix GPU issues on Linux only
+// Fix GPU / sandbox issues (Linux needs these most)
 app.commandLine.appendSwitch('no-sandbox')
+app.commandLine.appendSwitch('disable-dev-shm-usage')
 if (process.platform === 'linux') {
   app.commandLine.appendSwitch('disable-gpu')
   app.commandLine.appendSwitch('disable-gpu-sandbox')
@@ -102,8 +103,8 @@ function getAppPath(): string {
 
 function getPreloadPath(): string {
   return app.isPackaged
-    ? join(process.resourcesPath, 'app.asar', 'dist', 'preload', 'index.js')
-    : join(process.cwd(), 'dist', 'preload', 'index.js')
+    ? join(process.resourcesPath, 'app.asar', 'dist', 'preload', 'index.cjs')
+    : join(process.cwd(), 'dist', 'preload', 'index.cjs')
 }
 
 function safeSend(channel: string, ...args: unknown[]): void {
@@ -124,17 +125,37 @@ function createWindow(): void {
       contextIsolation: true,
       nodeIntegration: false,
     },
+    show: false,
+  })
+
+  const devUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173'
+
+  mainWindow.webContents.on('did-fail-load', (_event, code, desc) => {
+    console.error('[main] Renderer failed to load:', code, desc)
+  })
+  mainWindow.webContents.on('did-finish-load', () => {
+    console.log('[main] Renderer loaded successfully')
+  })
+  mainWindow.webContents.on('console-message', (_event, level, message) => {
+    if (level >= 2) console.log(`[renderer] ${message}`)
   })
 
   if (process.env.VITE_DEV_SERVER_URL) {
+    console.log('[main] Loading from dev server:', process.env.VITE_DEV_SERVER_URL)
     mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL)
     mainWindow.webContents.openDevTools()
   } else {
+    console.log('[main] VITE_DEV_SERVER_URL not set, trying file fallback')
     const indexPath = app.isPackaged
       ? join(process.resourcesPath, 'app.asar', 'dist', 'renderer', 'index.html')
       : join(process.cwd(), 'dist', 'renderer', 'index.html')
+    console.log('[main] Loading file:', indexPath)
     mainWindow.loadFile(indexPath)
   }
+
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show()
+  })
 
   mainWindow.on('closed', () => {
     mainWindow = null
@@ -1507,7 +1528,11 @@ ipcMain.handle('storage:isFirstRun', () => isFirstRun())
 app.whenReady().then(async () => {
   // --- Content Security Policy ---
   const isDev = !app.isPackaged
-  const scriptSrc = isDev ? "'self' 'unsafe-eval'" : "'self'"
+  // In dev mode, Vite needs 'unsafe-inline' for React preamble injection
+  // and 'unsafe-eval' for HMR. In production, only 'self' is allowed.
+  const scriptSrc = isDev ? "'self' 'unsafe-eval' 'unsafe-inline'" : "'self'"
+  const styleSrc = isDev ? "'self' 'unsafe-inline' https://fonts.googleapis.com" : "'self' 'unsafe-inline' https://fonts.googleapis.com"
+  const fontSrc = isDev ? "'self' data: https://fonts.gstatic.com" : "'self' data: https://fonts.gstatic.com"
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     callback({
       responseHeaders: {
@@ -1515,8 +1540,8 @@ app.whenReady().then(async () => {
         'Content-Security-Policy': [
           `default-src 'self'; ` +
           `script-src ${scriptSrc}; ` +
-          `style-src 'self' 'unsafe-inline'; ` +
-          `font-src 'self' data:; ` +
+          `style-src ${styleSrc}; ` +
+          `font-src ${fontSrc}; ` +
           `img-src 'self' data: blob: https:; ` +
           `connect-src 'self' https: wss:; ` +
           `worker-src 'self' blob:`

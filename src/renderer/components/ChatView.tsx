@@ -1,8 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { useVirtualizer } from '@tanstack/react-virtual'
 import { ChatMessage, Session, ToolCall, Attachment, McpServerInfo } from '../types'
 import MessageBubble from './MessageBubble'
-import ContextMeter from './ContextMeter'
 
 interface ChatViewProps {
   session: Session | null
@@ -58,13 +56,6 @@ export default function ChatView({
     displayMessages.push(streamingMsg)
   }
 
-  const virtualizer = useVirtualizer({
-    count: displayMessages.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => 100,
-    overscan: 5,
-  })
-
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [])
@@ -88,16 +79,14 @@ export default function ChatView({
       try {
         const list = await window.api.mcpList()
         setMcpServers(list)
-      } catch {
-        // Ignore
-      }
+      } catch {}
     }
     loadMcp()
     mcpIntervalRef.current = setInterval(loadMcp, 10000)
     return () => { if (mcpIntervalRef.current) clearInterval(mcpIntervalRef.current) }
   }, [])
 
-  // Pre-fill input from initialMessage (Ask AI from editor)
+  // Pre-fill input from initialMessage
   useEffect(() => {
     if (initialMessage) {
       setInput(initialMessage)
@@ -179,7 +168,16 @@ export default function ChatView({
     }
   }, [messages, session])
 
-  // Empty state
+  // Compute context usage
+  const totalTokens = displayMessages.reduce((sum, m) => sum + (m.tokenUsage?.totalTokens || 0), 0)
+  const contextPct = contextWindow && contextWindow > 0 ? Math.min((totalTokens / contextWindow) * 100, 100) : 0
+  const contextColor = contextPct >= 90 ? '#f85149' : contextPct >= 70 ? '#d29922' : '#3fb950'
+
+  // Provider name for header
+  const providerName = session?.provider ? session.provider.charAt(0).toUpperCase() + session.provider.slice(1) : 'Unknown'
+  const modelName = session?.model || 'Unknown'
+
+  // Empty state — Glasswing empty state with serif typography
   if (!session) {
     return (
       <div
@@ -188,23 +186,27 @@ export default function ChatView({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: '#0d1117',
-          color: '#484f58',
+          backgroundColor: 'var(--surface)',
+          color: 'var(--on-surface-variant)',
           flexDirection: 'column',
-          gap: '12px',
+          gap: 16,
+          position: 'relative',
         }}
       >
-        <div style={{ fontSize: '3rem', opacity: 0.3 }}>&#9889;</div>
-        <div style={{ fontSize: '1.1rem' }}>
+        {/* Empty state brand moment */}
+        <div style={{ position: 'absolute', bottom: 48, right: 48, pointerEvents: 'none', opacity: 0.05 }}>
+          <h1 style={{ fontFamily: "'Instrument Serif', serif", fontStyle: 'italic', fontSize: '8rem', letterSpacing: '-0.02em' }}>
+            Singularity
+          </h1>
+        </div>
+
+        <div style={{ fontSize: 48, opacity: 0.2 }}>∞</div>
+        <div style={{ fontSize: 18, fontWeight: 500, color: 'var(--on-surface)' }}>
           Select a session or create a new one
         </div>
       </div>
     )
   }
-
-  // Calculate context usage
-  const totalTokens = messages.reduce((sum, msg) => sum + (msg.tokenUsage?.totalTokens ?? 0), 0)
-  const contextPct = contextWindow && contextWindow > 0 ? totalTokens / contextWindow : 0
 
   return (
     <div
@@ -212,88 +214,78 @@ export default function ChatView({
         flex: 1,
         display: 'flex',
         flexDirection: 'column',
-        backgroundColor: '#0d1117',
-        minWidth: 0,
+        backgroundColor: 'var(--surface-container-low)',
+        overflow: 'hidden',
       }}
     >
-      {/* Header */}
-      <div
-        style={{
-          padding: '12px 20px',
-          borderBottom: '1px solid #21262d',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-          backgroundColor: '#161b22',
-        }}
-      >
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div
-            style={{
-              fontSize: '0.95rem',
-              fontWeight: 600,
-              color: '#c9d1d9',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {session.name}
+      {/* Chat Header with Context Meter */}
+      <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(62, 73, 74, 0.1)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {/* Status dot with glow */}
+            <div style={{
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              backgroundColor: 'var(--primary)',
+              boxShadow: '0 0 8px rgba(114, 214, 222, 0.6)',
+            }} />
+            <h3 style={{
+              fontSize: 11,
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.15em',
+              color: 'var(--on-surface)',
+              margin: 0,
+            }}>
+              {providerName} — {modelName}
+            </h3>
           </div>
-          <div style={{ fontSize: '0.75rem', color: '#8b949e' }}>
-            {session.provider} / {session.model}
-          </div>
-        </div>
-        {messages.length > 0 && (
+
+          {/* Export menu button */}
           <div style={{ position: 'relative' }}>
             <button
-              onClick={() => setExportMenu((v) => !v)}
-              title="Export session"
+              onClick={() => setExportMenu(!exportMenu)}
               style={{
-                backgroundColor: '#21262d',
-                border: '1px solid #30363d',
-                color: '#8b949e',
-                padding: '4px 10px',
-                borderRadius: '6px',
+                background: 'none',
+                border: 'none',
+                color: 'var(--on-surface-variant)',
                 cursor: 'pointer',
-                fontSize: '0.85rem',
-                fontWeight: 700,
-                lineHeight: 1,
+                fontSize: 18,
+                opacity: 0.4,
               }}
+              onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+              onMouseLeave={e => e.currentTarget.style.opacity = '0.4'}
             >
-              &#8942;
+              ⋮
             </button>
             {exportMenu && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '100%',
-                  right: 0,
-                  marginTop: '4px',
-                  backgroundColor: '#161b22',
-                  border: '1px solid #30363d',
-                  borderRadius: '8px',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
-                  zIndex: 1001,
-                  overflow: 'hidden',
-                }}
-              >
+              <div style={{
+                position: 'absolute',
+                top: '100%',
+                right: 0,
+                zIndex: 1001,
+                backgroundColor: 'var(--surface-container-high)',
+                border: '1px solid rgba(62, 73, 74, 0.1)',
+                borderRadius: 4,
+                padding: '4px 0',
+                minWidth: 150,
+              }}>
                 <button
                   onClick={() => handleExport('markdown')}
                   style={{
                     display: 'block',
                     width: '100%',
                     padding: '8px 16px',
-                    backgroundColor: 'transparent',
+                    background: 'none',
                     border: 'none',
-                    color: '#c9d1d9',
-                    cursor: 'pointer',
-                    fontSize: '0.85rem',
+                    color: 'var(--on-surface)',
                     textAlign: 'left',
-                    whiteSpace: 'nowrap',
+                    cursor: 'pointer',
+                    fontSize: 13,
                   }}
-                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#21262d' }}
-                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-container-highest)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'none'}
                 >
                   Export as Markdown
                 </button>
@@ -303,391 +295,214 @@ export default function ChatView({
                     display: 'block',
                     width: '100%',
                     padding: '8px 16px',
-                    backgroundColor: 'transparent',
+                    background: 'none',
                     border: 'none',
-                    color: '#c9d1d9',
-                    cursor: 'pointer',
-                    fontSize: '0.85rem',
+                    color: 'var(--on-surface)',
                     textAlign: 'left',
-                    whiteSpace: 'nowrap',
+                    cursor: 'pointer',
+                    fontSize: 13,
                   }}
-                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#21262d' }}
-                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-container-highest)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'none'}
                 >
                   Export as JSON
                 </button>
               </div>
             )}
           </div>
-        )}
-        {isLoading && (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-            }}
-          >
-            <div
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: '50%',
-                backgroundColor: '#f0883e',
-                animation: 'pulse 1s ease-in-out infinite',
-              }}
-            />
-            <span style={{ fontSize: '0.8rem', color: '#f0883e' }}>
-              Thinking...
-            </span>
-            <button
-              onClick={onCancel}
-              style={{
-                backgroundColor: '#21262d',
-                border: '1px solid #30363d',
-                color: '#c9d1d9',
-                padding: '4px 10px',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontSize: '0.75rem',
-              }}
-            >
-              Stop
-            </button>
+        </div>
+
+        {/* Context Meter */}
+        {contextWindow && totalTokens > 0 && (
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '-0.02em', opacity: 0.6, marginBottom: 6 }}>
+              <span>Context Tokens</span>
+              <span style={{ color: contextColor }}>{Math.round(contextPct)}% utilized</span>
+            </div>
+            <div style={{ height: 4, width: '100%', backgroundColor: 'var(--surface-container-highest)', borderRadius: 2, overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${contextPct}%`, backgroundColor: contextColor, boxShadow: `0 0 4px ${contextColor}66`, transition: 'width 0.3s' }} />
+            </div>
           </div>
         )}
       </div>
 
-      {/* Context Meter */}
-      {contextWindow && <ContextMeter messages={messages} contextWindow={contextWindow} modelName="" />}
-
-      {/* Compress Banner */}
-      {contextWindow && contextWindow > 0 && contextPct > 0.8 && (
-        <div style={{ padding: '6px 12px', backgroundColor: 'rgba(210,153,34,0.15)', borderBottom: '1px solid #21262d', fontSize: 12, color: '#d29922', display: 'flex', gap: 8, alignItems: 'center' }}>
-          Context {Math.round(contextPct * 100)}% full
-          <button onClick={() => onCompress?.('truncate')} style={{ padding: '2px 8px', backgroundColor: '#238636', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 11 }}>Compress (Smart Truncate)</button>
+      {/* Toast notification */}
+      {toast && (
+        <div style={{
+          padding: '8px 16px',
+          backgroundColor: 'rgba(63, 168, 176, 0.15)',
+          borderBottom: '1px solid rgba(62, 73, 74, 0.1)',
+          fontSize: 12,
+          color: 'var(--primary)',
+        }}>
+          {toast}
         </div>
       )}
 
       {/* Messages */}
       <div
         ref={parentRef}
-        style={{
-          flex: 1,
-          overflowY: 'auto',
-        }}
+        style={{ flex: 1, overflowY: 'auto', padding: 16 }}
       >
-        <div style={{ height: `${virtualizer.getTotalSize()}px`, position: 'relative' }}>
-          {virtualizer.getVirtualItems().map(vItem => {
-            const msg = displayMessages[vItem.index]
-            if (!msg) return null
+        {displayMessages.map((msg) => (
+          <MessageBubble
+            key={msg.id}
+            message={msg}
+            tokenUsage={msg.tokenUsage}
+            model={modelName}
+          />
+        ))}
 
-            const activeCalls = activeToolCalls.filter((t) => t.status === 'executing' || t.status === 'pending')
-            const showToolIndicator = msg.role === 'assistant' && activeCalls.length > 0 && vItem.index > 0 && displayMessages[vItem.index - 1]?.role === 'user'
-
-            return (
-              <div
-                key={msg.id}
-                ref={virtualizer.measureElement}
-                data-index={vItem.index}
-                style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${vItem.start}px)` }}
-              >
-                {showToolIndicator && (
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexWrap: 'wrap',
-                      gap: '6px',
-                      marginBottom: '8px',
-                      padding: '8px 12px',
-                      backgroundColor: '#161b22',
-                      border: '1px solid #30363d',
-                      borderRadius: '8px',
-                    }}
-                  >
-                    <span style={{ fontSize: '0.75rem', color: '#8b949e', fontWeight: 600 }}>
-                      Tools:
-                    </span>
-                    {activeCalls.map((tc) => (
-                      <span
-                        key={tc.id}
-                        style={{
-                          fontSize: '0.75rem',
-                          fontFamily: 'monospace',
-                          padding: '2px 8px',
-                          borderRadius: '4px',
-                          backgroundColor: tc.status === 'executing'
-                            ? 'rgba(88, 166, 255, 0.15)'
-                            : 'rgba(210, 153, 34, 0.15)',
-                          color: tc.status === 'executing' ? '#58a6ff' : '#d29922',
-                          border: `1px solid ${tc.status === 'executing' ? 'rgba(88, 166, 255, 0.3)' : 'rgba(210, 153, 34, 0.3)'}`,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                        }}
-                      >
-                        <span style={{ fontSize: '0.7rem' }}>
-                          {tc.status === 'executing' ? '\uD83D\uDD04' : '\u23F3'}
-                        </span>
-                        {tc.name}
-                      </span>
-                    ))}
-                  </div>
-                )}
-                <MessageBubble
-                  content={msg.content}
-                  role={msg.role}
-                  timestamp={msg.timestamp}
-                  tokenUsage={msg.tokenUsage}
-                />
-              </div>
-            )
-          })}
-        </div>
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* MCP Tools Panel */}
-      {(() => {
-        const runningServers = mcpServers.filter(s => s.status === 'running')
-        const totalTools = runningServers.reduce((sum, s) => sum + (s.tools?.length || 0), 0)
-        if (runningServers.length === 0) return null
-        return (
-          <div style={{ padding: '8px 20px', borderTop: '1px solid #21262d', backgroundColor: '#161b22' }}>
-            <button
-              onClick={() => setMcpExpanded(!mcpExpanded)}
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                backgroundColor: 'transparent',
-                border: 'none',
-                color: '#8b949e',
-                cursor: 'pointer',
-                padding: '4px 8px',
-                fontSize: '0.8rem',
-                textAlign: 'left',
-              }}
-            >
-              <span>
-                <span style={{ color: '#3fb950' }}>{totalTools} tools</span> from <span style={{ color: '#58a6ff' }}>{runningServers.length} server{runningServers.length > 1 ? 's' : ''}</span>
-              </span>
-              <span style={{ fontSize: '0.7rem', transform: mcpExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
-                &#9660;
-              </span>
-            </button>
-            {mcpExpanded && (
-              <div style={{ marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                {runningServers.map(server =>
-                  (server.tools || []).map(tool => (
-                    <span
-                      key={`${server.name}:${tool.name}`}
-                      style={{
-                        fontSize: '0.7rem',
-                        fontFamily: 'monospace',
-                        padding: '2px 8px',
-                        borderRadius: '4px',
-                        backgroundColor: 'rgba(88, 166, 255, 0.1)',
-                        color: '#58a6ff',
-                        border: '1px solid rgba(88, 166, 255, 0.2)',
-                        title: tool.description,
-                      }}
-                      title={`${server.name} — ${tool.description || ''}`}
-                    >
-                      {server.name}/{tool.name}
-                    </span>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
-        )
-      })()}
-
-      {/* Input Area */}
-      <div
-        style={{
-          padding: '16px 20px',
-          borderTop: '1px solid #21262d',
-          backgroundColor: '#161b22',
-        }}
-      >
-        {/* Attachment chips */}
-        {attachments.length > 0 && (
-          <div
-            style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: '6px',
-              marginBottom: '8px',
-            }}
-          >
-            {attachments.map((att) => (
-              <div
-                key={att.id}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '4px 8px',
-                  backgroundColor: '#21262d',
-                  border: '1px solid #30363d',
-                  borderRadius: '6px',
-                  fontSize: '0.75rem',
-                  color: '#c9d1d9',
-                }}
-              >
-                <span style={{ fontSize: '0.8rem' }}>
-                  {att.type === 'image' ? '\uD83D\uDDBC' : '\uD83D\uDCCE'}
-                </span>
-                <span style={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {att.name}
-                </span>
-                <span style={{ color: '#484f58', fontSize: '0.65rem' }}>
-                  ({formatFileSize(att.size)})
-                </span>
-                <button
-                  onClick={() => handleRemoveAttachment(att.id)}
-                  style={{
-                    backgroundColor: 'transparent',
-                    border: 'none',
-                    color: '#f85149',
-                    cursor: 'pointer',
-                    padding: '0 2px',
-                    fontSize: '0.85rem',
-                    lineHeight: 1,
-                  }}
-                  title="Remove attachment"
-                >
-                  {'\u2715'}
-                </button>
-              </div>
-            ))}
+        {displayMessages.length === 0 && !streamingContent && (
+          <div style={{
+            textAlign: 'center',
+            color: 'var(--on-surface-variant)',
+            opacity: 0.4,
+            padding: 48,
+            fontSize: 13,
+          }}>
+            No messages yet. Start the conversation.
           </div>
         )}
 
-        <div
-          style={{
-            display: 'flex',
-            gap: '8px',
-            alignItems: 'flex-end',
-            backgroundColor: '#0d1117',
-            border: '1px solid #30363d',
-            borderRadius: '12px',
-            padding: '8px 12px',
-          }}
-        >
-          <button
-            onClick={handlePickFiles}
-            disabled={isLoading}
-            title="Attach file"
-            style={{
-              backgroundColor: 'transparent',
-              border: 'none',
-              color: isLoading ? '#484f58' : '#8b949e',
-              cursor: isLoading ? 'not-allowed' : 'pointer',
-              padding: '4px 6px',
-              display: 'flex',
-              alignItems: 'center',
-              fontSize: '1.1rem',
-              flexShrink: 0,
-            }}
-          >
-            {'\uD83D\uDCCE'}
-          </button>
+        {/* Loading indicator */}
+        {isLoading && !streamingContent && (
+          <div style={{
+            textAlign: 'center',
+            color: 'var(--primary)',
+            padding: 24,
+            fontSize: 13,
+            opacity: 0.6,
+          }}>
+            Thinking...
+          </div>
+        )}
+
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Attachment chips */}
+      {attachments.length > 0 && (
+        <div style={{ padding: '8px 16px', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {attachments.map(att => (
+            <div
+              key={att.id}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '4px 8px',
+                backgroundColor: 'var(--surface-container)',
+                borderRadius: 4,
+                fontSize: 11,
+                color: 'var(--on-surface-variant)',
+              }}
+            >
+              <span>📎 {att.name}</span>
+              <span style={{ opacity: 0.6 }}>{(att.size / 1024).toFixed(1)}KB</span>
+              <button
+                onClick={() => handleRemoveAttachment(att.id)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--on-surface-variant)',
+                  cursor: 'pointer',
+                  fontSize: 14,
+                  padding: 0,
+                  lineHeight: 1,
+                }}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Input Area */}
+      <div style={{ padding: 16, borderTop: '1px solid rgba(62, 73, 74, 0.1)' }}>
+        <div style={{
+          backgroundColor: 'var(--surface-lowest)',
+          padding: 12,
+          borderRadius: 4,
+          border: '1px solid rgba(62, 73, 74, 0.2)',
+          transition: 'border-color 0.15s',
+        }}>
           <textarea
             ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Type a message... (Shift+Enter for new line)"
-            rows={1}
-            disabled={isLoading}
+            placeholder={`Ask about ${session.name || 'your project'}...`}
+            rows={2}
             style={{
-              flex: 1,
+              width: '100%',
               backgroundColor: 'transparent',
               border: 'none',
-              color: '#c9d1d9',
-              fontSize: '0.9rem',
-              fontFamily: 'inherit',
-              resize: 'none',
               outline: 'none',
-              maxHeight: '200px',
-              lineHeight: 1.5,
+              color: 'var(--on-surface)',
+              fontSize: 13,
+              resize: 'none',
+              minHeight: 40,
+              maxHeight: 200,
+              fontFamily: 'inherit',
             }}
           />
-          <button
-            onClick={handleSend}
-            disabled={isLoading || (!input.trim() && attachments.length === 0)}
-            style={{
-              backgroundColor: (input.trim() || attachments.length > 0) && !isLoading ? '#238636' : '#21262d',
-              border: 'none',
-              borderRadius: '8px',
-              color: (input.trim() || attachments.length > 0) && !isLoading ? '#fff' : '#484f58',
-              padding: '8px 16px',
-              cursor: (input.trim() || attachments.length > 0) && !isLoading ? 'pointer' : 'not-allowed',
-              fontSize: '0.85rem',
-              fontWeight: 600,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              transition: 'all 0.2s',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            <SendIcon />
-            Send
-          </button>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={handlePickFiles}
+                title="Attach file"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--on-surface-variant)',
+                  cursor: 'pointer',
+                  fontSize: 16,
+                  opacity: 0.4,
+                  padding: 2,
+                }}
+                onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                onMouseLeave={e => e.currentTarget.style.opacity = '0.4'}
+              >
+                📎
+              </button>
+            </div>
+
+            {/* Send button — Lithium gradient */}
+            <button
+              onClick={handleSend}
+              disabled={isLoading || (!input.trim() && attachments.length === 0)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '6px 12px',
+                background: isLoading
+                  ? 'var(--surface-container-highest)'
+                  : 'linear-gradient(135deg, var(--primary-container) 0%, var(--primary) 100%)',
+                color: isLoading ? 'var(--on-surface-variant)' : 'var(--on-primary-fixed)',
+                border: 'none',
+                borderRadius: 2,
+                cursor: isLoading ? 'wait' : (input.trim() || attachments.length > 0) ? 'pointer' : 'not-allowed',
+                fontSize: 11,
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.1em',
+                opacity: isLoading || (input.trim() || attachments.length > 0) ? 1 : 0.5,
+                transition: 'transform 0.1s, opacity 0.15s',
+                boxShadow: '0 4px 12px rgba(114, 214, 222, 0.2)',
+              }}
+              onMouseEnter={e => { if (!isLoading && (input.trim() || attachments.length > 0)) e.currentTarget.style.transform = 'scale(1.02)' }}
+              onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)' }}
+            >
+              {isLoading ? 'Generating...' : 'Send'}
+              {!isLoading && <span style={{ fontSize: 14 }}>→</span>}
+            </button>
+          </div>
         </div>
       </div>
-
-      {/* Keyframe animation for pulse */}
-      <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.4; }
-        }
-      `}</style>
-
-      {/* Export toast */}
-      {toast && (
-        <div
-          style={{
-            position: 'fixed',
-            bottom: '24px',
-            right: '24px',
-            backgroundColor: '#238636',
-            color: '#fff',
-            padding: '10px 16px',
-            borderRadius: '8px',
-            fontSize: '0.85rem',
-            fontWeight: 500,
-            boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
-            zIndex: 9999,
-            maxWidth: 400,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {toast}
-        </div>
-      )}
     </div>
   )
-}
-
-function SendIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-      <path d="M.989 8 .064 1.58a1.45 1.45 0 0 1 2.04-1.483L14.492 4.82a1.275 1.275 0 0 1 0 2.36L2.104 11.903a1.45 1.45 0 0 1-2.04-1.482L.99 8Zm.961-.162 1.472 1.472a.25.25 0 0 0 .434-.162l.63-5.06a.25.25 0 0 0-.395-.236L1.573 5.68a.25.25 0 0 0 .013.434L3.95 7.838Z" />
-    </svg>
-  )
-}
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
