@@ -63,16 +63,9 @@ const GITHUB_TOKEN_URL = 'https://github.com/login/oauth/access_token'
 const GITHUB_CLIENT_ID = 'Iv1.b50988d7db51a44e' // Copilot CLI client ID
 const GITHUB_SCOPE = 'read:user'
 
-// Qwen / DashScope OAuth - Device Flow (placeholders)
-const QWEN_DEVICE_CODE_URL = 'https://dashscope.aliyuncs.com/oauth/device/code'
-const QWEN_TOKEN_URL = 'https://dashscope.aliyuncs.com/oauth/token'
-const QWEN_CLIENT_ID = 'your-qwen-client-id'
-const QWEN_SCOPE = 'openid profile'
-
 // Google OAuth 2.0 - PKCE Flow
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
-const GOOGLE_CLIENT_ID = 'your-google-client-id.apps.googleusercontent.com'
 const GOOGLE_SCOPES = [
   'https://www.googleapis.com/auth/cloud-platform',
   'openid',
@@ -325,84 +318,37 @@ async function verifyGithubToken(token: string): Promise<boolean> {
 }
 
 // ---------------------------------------------------------------------------
-// Qwen Device Flow
+// Qwen API Key Validation
 // ---------------------------------------------------------------------------
 
-export async function qwenDeviceAuth(): Promise<GithubDeviceAuthResult> {
+const QWEN_API_KEY_DOC_URL = 'https://dashscope.console.aliyun.com/apiKey'
+const QWEN_VALIDATE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1/models'
+
+export async function validateQwenApiKey(apiKey: string): Promise<{ valid: boolean; models?: string[]; error?: string }> {
   try {
-    const response = await fetch(QWEN_DEVICE_CODE_URL, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        client_id: QWEN_CLIENT_ID,
-        scope: QWEN_SCOPE,
-      }),
+    const response = await fetch(QWEN_VALIDATE_URL, {
+      headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(8000),
     })
+    if (response.status === 401) return { valid: false, error: 'Invalid API key' }
+    if (!response.ok) return { valid: false, error: `Validation failed: ${response.status}` }
+    const data = await response.json() as { data?: { id: string }[] }
+    const models = data.data?.map(m => m.id) || []
+    return { valid: true, models }
+  } catch (err: any) { return { valid: false, error: err.message } }
+}
 
-    if (!response.ok) {
-      throw new Error(`Qwen device code request failed: ${response.status} ${response.statusText}`)
-    }
+export async function openQwenApiKeyPage(): Promise<void> {
+  const { shell } = await import('electron')
+  await shell.openExternal(QWEN_API_KEY_DOC_URL)
+}
 
-    const data = (await response.json()) as Record<string, unknown>
-
-    if (data.error) {
-      throw new Error(String(data.error_description || data.error))
-    }
-
-    return {
-      status: 'pending',
-      userCode: String(data.user_code || data.verification_code || ''),
-      verificationUri: String(data.verification_uri || data.verification_url || ''),
-      interval: (data.interval as number) || 5,
-    }
-  } catch (err) {
-    return {
-      status: 'error',
-      error: err instanceof Error ? err.message : String(err),
-    }
-  }
+export async function qwenDeviceAuth(): Promise<GithubDeviceAuthResult> {
+  return { status: 'error', error: 'Qwen OAuth Device Flow is not supported. Please use API key authentication via Settings > Qwen > Enter API Key.' }
 }
 
 export async function qwenPoll(): Promise<GithubDeviceAuthResult> {
-  try {
-    const response = await fetch(QWEN_TOKEN_URL, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        client_id: QWEN_CLIENT_ID,
-        grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
-      }),
-    })
-
-    if (!response.ok) {
-      throw new Error(`Qwen token request failed: ${response.status}`)
-    }
-
-    const data = (await response.json()) as Record<string, unknown>
-
-    if (data.error === 'authorization_pending' || data.error === 'slow_down') {
-      return {
-        status: 'pending',
-        userCode: '',
-        verificationUri: '',
-        interval: (data.interval as number) || 5,
-      }
-    }
-
-    if (data.error) {
-      return { status: 'error', error: String(data.error_description || data.error) }
-    }
-
-    return { status: 'complete', accessToken: String(data.access_token) }
-  } catch (err) {
-    return { status: 'error', error: err instanceof Error ? err.message : String(err) }
-  }
+  return { status: 'error', error: 'Qwen uses API key authentication. Set your key in Settings.' }
 }
 
 // ---------------------------------------------------------------------------
@@ -575,6 +521,82 @@ function cleanupGoogleOAuth(): void {
   }
   googleOAuthResolver = null
   googleOAuthState = null
+}
+
+// ---------------------------------------------------------------------------
+// Google OAuth PKCE Flow with user-provided Client ID
+// ---------------------------------------------------------------------------
+
+export async function googleOAuthWithClientId(
+  clientId: string,
+  start: boolean,
+  port = 9876,
+): Promise<GoogleOAuthResult> {
+  if (!clientId || clientId.includes('your-google-client-id')) {
+    return { status: 'error', error: 'Please provide a valid Google Cloud OAuth Client ID.' }
+  }
+
+  if (!start) {
+    if (googleOAuthServer) { googleOAuthServer.close(); googleOAuthServer = null }
+    if (googleOAuthResolver) { googleOAuthResolver({ status: 'error', error: 'Cancelled' }); googleOAuthResolver = null }
+    googleOAuthState = null
+    return { status: 'error', error: 'Cancelled' }
+  }
+
+  const codeVerifier = generateCodeVerifier()
+  const codeChallenge = await generateCodeChallenge(codeVerifier)
+  const state = randomBytes(16).toString('hex')
+  const redirectUri = `http://127.0.0.1:${port}/callback`
+  const authUrl = new URL(GOOGLE_AUTH_URL)
+  authUrl.searchParams.set('client_id', clientId)
+  authUrl.searchParams.set('redirect_uri', redirectUri)
+  authUrl.searchParams.set('response_type', 'code')
+  authUrl.searchParams.set('scope', GOOGLE_SCOPES.join(' '))
+  authUrl.searchParams.set('code_challenge', codeChallenge)
+  authUrl.searchParams.set('code_challenge_method', 'S256')
+  authUrl.searchParams.set('state', state)
+  googleOAuthState = { codeVerifier, state, redirectUri }
+
+  return new Promise<GoogleOAuthResult>((resolve, reject) => {
+    googleOAuthResolver = resolve
+    const server = createServer(async (req, res) => {
+      try {
+        const url = new URL(req.url || '/', `http://127.0.0.1:${port}`)
+        if (url.pathname === '/callback') {
+          const code = url.searchParams.get('code')
+          const returnedState = url.searchParams.get('state')
+          const error = url.searchParams.get('error')
+          if (error) { res.writeHead(200, {'Content-Type':'text/html'}); res.end('<h1>Cancelled</h1>'); googleOAuthResolver?.({status:'error', error}); cleanupGoogleOAuth(); return }
+          if (!code || returnedState !== googleOAuthState?.state) { res.writeHead(400); res.end('Invalid callback'); googleOAuthResolver?.({status:'error',error:'Invalid callback'}); cleanupGoogleOAuth(); return }
+          try {
+            const tokenResp = await fetch(GOOGLE_TOKEN_URL, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: new URLSearchParams({ code, client_id: clientId, redirect_uri: googleOAuthState!.redirectUri, grant_type:'authorization_code', code_verifier: googleOAuthState!.codeVerifier }).toString() })
+            if (!tokenResp.ok) { const t = await tokenResp.text(); res.writeHead(500,{'Content-Type':'text/html'}); res.end(`<h1>Failed</h1><p>${t}</p>`); googleOAuthResolver?.({status:'error',error:t}); cleanupGoogleOAuth(); return }
+            const td = await tokenResp.json() as Record<string,unknown>
+            res.writeHead(200,{'Content-Type':'text/html'}); res.end('<h1>Success!</h1><p>Close this window.</p>')
+            googleOAuthResolver?.({status:'complete',tokens:{accessToken:String(td.access_token),refreshToken:String(td.refresh_token||'')}})
+            cleanupGoogleOAuth()
+          } catch(e:any){res.writeHead(500,{'Content-Type':'text/html'});res.end(`<h1>Error</h1><p>${e.message}</p>`);googleOAuthResolver?.({status:'error',error:e.message});cleanupGoogleOAuth()}
+        } else { res.writeHead(404); res.end('Not found') }
+      } catch(e:any){res.writeHead(500);res.end(e.message);if(googleOAuthResolver)googleOAuthResolver({status:'error',error:e.message});cleanupGoogleOAuth()}
+    })
+    server.listen(port, '127.0.0.1', () => { googleOAuthServer = server; resolve({status:'pending',authUrl:authUrl.toString()}) })
+    server.on('error', (e) => { reject(e); cleanupGoogleOAuth() })
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Gemini API Key Validation
+// ---------------------------------------------------------------------------
+
+export async function validateGeminiApiKey(apiKey: string): Promise<{ valid: boolean; models?: string[]; error?: string }> {
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`, { signal: AbortSignal.timeout(8000) })
+    if (response.status === 400 || response.status === 403) return { valid: false, error: 'Invalid API key' }
+    if (!response.ok) return { valid: false, error: `Validation failed: ${response.status}` }
+    const data = await response.json() as { models?: { name: string }[] }
+    const models = data.models?.map(m => m.name.replace('models/', '')) || []
+    return { valid: true, models }
+  } catch (err: any) { return { valid: false, error: err.message } }
 }
 
 // ---------------------------------------------------------------------------

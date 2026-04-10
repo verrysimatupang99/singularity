@@ -474,3 +474,10 @@ export class McpManager {
     await Promise.allSettled(promises)
   }
 }
+
+// Singleton
+let _instance: McpManager | null = null
+export function getMcpManager(): McpManager {
+  if (!_instance) _instance = new McpManager()
+  return _instance
+}

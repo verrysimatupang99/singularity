@@ -1,0 +1,27 @@
+{
+  "version": "1",
+  "plugins": [
+    {
+      "name": "github-tools",
+      "displayName": "GitHub Tools",
+      "version": "1.0.0",
+      "description": "Create issues, PRs, and manage GitHub repos from agents",
+      "author": "singularity-community",
+      "downloadUrl": "https://example.com/github-tools-v1.0.0.zip",
+      "sha256": "abc123def456",
+      "tools": ["github_create_issue", "github_list_prs", "github_comment"],
+      "homepage": "https://github.com/singularity-community/github-tools"
+    },
+    {
+      "name": "docker-tools",
+      "displayName": "Docker Tools",
+      "version": "2.1.0",
+      "description": "Build, run, and manage Docker containers from agents",
+      "author": "singularity-community",
+      "downloadUrl": "https://example.com/docker-tools-v2.1.0.zip",
+      "sha256": "def789abc012",
+      "tools": ["docker_build", "docker_run", "docker_logs", "docker_ls", "docker_rm"],
+      "homepage": "https://github.com/singularity-community/docker-tools"
+    }
+  ]
+}

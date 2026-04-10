@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { ChatMessage, Session, ToolCall, Attachment } from '../types'
+import { ChatMessage, Session, ToolCall, Attachment, McpServerInfo } from '../types'
 import MessageBubble from './MessageBubble'
 import ContextMeter from './ContextMeter'
 
@@ -39,6 +39,8 @@ export default function ChatView({
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [exportMenu, setExportMenu] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+  const [mcpServers, setMcpServers] = useState<McpServerInfo[]>([])
+  const [mcpExpanded, setMcpExpanded] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const parentRef = useRef<HTMLDivElement>(null)
@@ -78,6 +80,21 @@ export default function ChatView({
         Math.min(textareaRef.current.scrollHeight, 200) + 'px'
     }
   }, [input])
+
+  // Load MCP servers
+  useEffect(() => {
+    const loadMcp = async () => {
+      try {
+        const list = await window.api.mcpList()
+        setMcpServers(list)
+      } catch {
+        // Ignore
+      }
+    }
+    loadMcp()
+    const interval = setInterval(loadMcp, 10000)
+    return () => clearInterval(interval)
+  }, [])
 
   // Pre-fill input from initialMessage (Ask AI from editor)
   useEffect(() => {
@@ -427,6 +444,64 @@ export default function ChatView({
         </div>
         <div ref={messagesEndRef} />
       </div>
+
+      {/* MCP Tools Panel */}
+      {(() => {
+        const runningServers = mcpServers.filter(s => s.status === 'running')
+        const totalTools = runningServers.reduce((sum, s) => sum + (s.tools?.length || 0), 0)
+        if (runningServers.length === 0) return null
+        return (
+          <div style={{ padding: '8px 20px', borderTop: '1px solid #21262d', backgroundColor: '#161b22' }}>
+            <button
+              onClick={() => setMcpExpanded(!mcpExpanded)}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                backgroundColor: 'transparent',
+                border: 'none',
+                color: '#8b949e',
+                cursor: 'pointer',
+                padding: '4px 8px',
+                fontSize: '0.8rem',
+                textAlign: 'left',
+              }}
+            >
+              <span>
+                <span style={{ color: '#3fb950' }}>{totalTools} tools</span> from <span style={{ color: '#58a6ff' }}>{runningServers.length} server{runningServers.length > 1 ? 's' : ''}</span>
+              </span>
+              <span style={{ fontSize: '0.7rem', transform: mcpExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
+                &#9660;
+              </span>
+            </button>
+            {mcpExpanded && (
+              <div style={{ marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                {runningServers.map(server =>
+                  (server.tools || []).map(tool => (
+                    <span
+                      key={`${server.name}:${tool.name}`}
+                      style={{
+                        fontSize: '0.7rem',
+                        fontFamily: 'monospace',
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        backgroundColor: 'rgba(88, 166, 255, 0.1)',
+                        color: '#58a6ff',
+                        border: '1px solid rgba(88, 166, 255, 0.2)',
+                        title: tool.description,
+                      }}
+                      title={`${server.name} — ${tool.description || ''}`}
+                    >
+                      {server.name}/{tool.name}
+                    </span>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {/* Input Area */}
       <div

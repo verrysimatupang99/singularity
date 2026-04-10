@@ -1,6 +1,7 @@
 import type { AgentEvent, ChatMessage } from '../providers/types.js'
 import { BUILT_IN_TOOLS, executeTool } from './agentTools.js'
 import { getApiKey } from './storage.js'
+import { getMcpManager } from './mcpManager.js'
 
 export interface AgentRunnerOptions {
   agentId: string; task: string; workspaceRoot: string; provider: string; model: string
@@ -16,8 +17,25 @@ function waitForApproval(agentId: string): Promise<boolean> {
 
 function buildPrompt(ws: string, memories: any[] = []): string {
   const t = BUILT_IN_TOOLS.map(x => `- ${x.name}(${JSON.stringify(x.parameters)}): ${x.description}${x.requiresApproval?' [NEEDS APPROVAL]':''}`).join('\n')
+
+  // Inject running MCP tools
+  let mcpSection = ''
+  try {
+    const mgr = getMcpManager()
+    const runningServers = mgr.listServers().filter(s => s.status === 'running')
+    if (runningServers.length > 0) {
+      const mcpTools: string[] = []
+      for (const server of runningServers) {
+        for (const tool of server.tools || []) {
+          mcpTools.push(`- mcp_call(server="${server.name}", tool="${tool.name}"): ${tool.description || 'MCP tool'}`)
+        }
+      }
+      mcpSection = `\n\nMCP Tools (${mcpTools.length} from ${runningServers.length} servers):\n${mcpTools.join('\n')}`
+    }
+  } catch {}
+
   const memSection = memories.length > 0 ? `\n\nRelevant memories from previous sessions:\n${memories.map(m => `- [${m.key}]: ${m.value}`).join('\n')}` : ''
-  return `You are a coding agent. Workspace: ${ws}${memSection}\nTools: ${t}\nCall tools with: <tool>{"tool":"name","args":{}}</tool>\nAfter ALL tool calls, respond with a brief summary.`
+  return `You are a coding agent. Workspace: ${ws}${memSection}${mcpSection}\nTools: ${t}\nCall tools with: <tool>{"tool":"name","args":{}}</tool>\nAfter ALL tool calls, respond with a brief summary.`
 }
 
 export async function runAgentLoop({ agentId, task, workspaceRoot, provider, model, onEvent }: AgentRunnerOptions): Promise<void> {
@@ -49,7 +67,15 @@ export async function runAgentLoop({ agentId, task, workspaceRoot, provider, mod
         const result = approved ? await executeTool(toolCall, workspaceRoot) : { output: '[rejected]', approved: false }
         onEvent({ agentId, step: turn, type: 'tool_result', toolCall, result: { ...result, toolName: toolCall.toolName, approved } })
         messages.push({ role: 'assistant', content: JSON.stringify(toolCall), timestamp: Date.now() })
-        messages.push({ role: 'user', content: `Tool: ${toolCall.toolName}\nResult: ${result.output}${result.error ? '\nError: '+result.error : ''}`, timestamp: Date.now() })
+        if (toolCall.toolName === 'cua_screenshot' && (result as any).screenshot) {
+          messages.push({
+            role: 'user',
+            content: [{ type: 'text', text: `Tool: cua_screenshot\nResult: Screenshot captured` }, { type: 'image', source: { type: 'base64', media_type: 'image/png', data: (result as any).screenshot } }],
+            timestamp: Date.now(),
+          } as any)
+        } else {
+          messages.push({ role: 'user', content: `Tool: ${toolCall.toolName}\nResult: ${result.output}${result.error ? '\nError: '+result.error : ''}`, timestamp: Date.now() })
+        }
       } else {
         onEvent({ agentId, step: turn, type: 'error', error: err.message })
         break

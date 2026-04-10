@@ -1,3 +1,4 @@
+import { createHash } from 'crypto'
 import { readFileSync, readdirSync, existsSync, mkdirSync, cpSync } from 'fs'
 import { join } from 'path'
 import { homedir } from 'os'
@@ -27,6 +28,20 @@ export interface PluginManifest {
   tools: PluginToolDef[]
   env?: string[]
 }
+
+export interface PluginRegistryEntry {
+  name: string
+  displayName: string
+  version: string
+  description: string
+  author: string
+  downloadUrl: string
+  sha256: string
+  tools: string[]
+  homepage: string
+}
+
+const PLUGIN_REGISTRY_URL = 'https://raw.githubusercontent.com/verrysimatupang99/singularity-plugins/main/registry.json'
 
 export class PluginLoader {
   private plugins: Map<string, LoadedPlugin> = new Map()
@@ -126,6 +141,58 @@ export class PluginLoader {
   getLoadedPlugins(): LoadedPlugin[] { return Array.from(this.plugins.values()) }
   getRegisteredTools(): Map<string, AgentTool> { return this.registeredTools }
   getHandler(name: string) { return this.handlers.get(name) }
+
+  async fetchRegistry(registryUrl?: string): Promise<PluginRegistryEntry[]> {
+    const url = registryUrl || PLUGIN_REGISTRY_URL
+    try {
+      const resp = await fetch(url, { signal: AbortSignal.timeout(10000) })
+      if (!resp.ok) throw new Error(`Registry fetch failed: ${resp.status}`)
+      const data = await resp.json() as { plugins: PluginRegistryEntry[] }
+      return data.plugins || []
+    } catch (err: any) {
+      throw new Error(`Cannot fetch plugin registry: ${err.message}`)
+    }
+  }
+
+  async installFromRegistry(entry: PluginRegistryEntry): Promise<{ success: boolean; error?: string }> {
+    const { tmpdir } = await import('os')
+    const { join } = await import('path')
+    const { writeFileSync, mkdirSync, rmSync, existsSync, readdirSync } = await import('fs')
+
+    try {
+      // Download
+      const resp = await fetch(entry.downloadUrl, { signal: AbortSignal.timeout(30000) })
+      if (!resp.ok) throw new Error(`Download failed: ${resp.status}`)
+      const buffer = Buffer.from(await resp.arrayBuffer())
+
+      // Verify SHA-256
+      const hash = createHash('sha256').update(buffer).digest('hex')
+      if (hash !== entry.sha256) throw new Error(`SHA-256 mismatch: expected ${entry.sha256.slice(0, 16)}..., got ${hash.slice(0, 16)}...`)
+
+      // Extract ZIP
+      const tempDir = join(tmpdir(), `singularity-plugin-${Date.now()}`)
+      mkdirSync(tempDir, { recursive: true })
+      const zipPath = join(tempDir, 'plugin.zip')
+      writeFileSync(zipPath, buffer)
+
+      const { default: extract } = await import('extract-zip')
+      await extract(zipPath, { dir: tempDir })
+
+      // Find extracted directory (may have version suffix)
+      const extractedContents = readdirSync(tempDir).filter(n => n !== 'plugin.zip')
+      const extractedDir = extractedContents.length === 1 ? join(tempDir, extractedContents[0]) : tempDir
+
+      // Install
+      const result = await this.installPlugin(extractedDir)
+
+      // Cleanup
+      try { rmSync(tempDir, { recursive: true, force: true }) } catch {}
+
+      return result
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  }
 }
 
 export const pluginLoader = new PluginLoader()

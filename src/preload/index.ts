@@ -135,9 +135,15 @@ contextBridge.exposeInMainWorld('api', {
   authGithubPoll: () => ipcRenderer.invoke('auth:github-poll'),
   authQwenDevice: () => ipcRenderer.invoke('auth:qwen-device'),
   authQwenPoll: () => ipcRenderer.invoke('auth:qwen-poll'),
+  authValidateQwen: (apiKey: string) => ipcRenderer.invoke('auth:validate-qwen', apiKey),
+  authOpenQwenConsole: () => ipcRenderer.invoke('auth:open-qwen-console'),
   authGoogleOAuth: (start: boolean, port?: number) =>
     ipcRenderer.invoke('auth:google-oauth', start, port),
   authImportGemini: () => ipcRenderer.invoke('auth:import-gemini'),
+  authValidateGemini: (apiKey: string) => ipcRenderer.invoke('auth:validate-gemini', apiKey),
+  authGoogleOAuthStart: (clientId: string) => ipcRenderer.invoke('auth:google-oauth-start', clientId),
+  authGoogleOAuthStop: (clientId: string) => ipcRenderer.invoke('auth:google-oauth-stop', clientId),
+  authOpenGoogleConsole: () => ipcRenderer.invoke('auth:open-google-cloud-console'),
 
   // Auth device flow (TASK 4d)
   authConnect: (providerId: string) =>
@@ -233,6 +239,8 @@ contextBridge.exposeInMainWorld('api', {
   pluginsList: () => ipcRenderer.invoke('plugins:list'),
   pluginsInstall: (dir: string) => ipcRenderer.invoke('plugins:install', dir),
   pluginsUnload: (name: string) => ipcRenderer.invoke('plugins:unload', name),
+  pluginsFetchRegistry: (url?: string) => ipcRenderer.invoke('plugins:fetchRegistry', url),
+  pluginsInstallFromRegistry: (entry: unknown) => ipcRenderer.invoke('plugins:installFromRegistry', entry),
 
   // Computer Use (Phase 7 - TASK 4)
   cuScreenshot: () => ipcRenderer.invoke('cu:screenshot'),

@@ -70,6 +70,14 @@ export default function SettingsView({
   const [installedPlugins, setInstalledPlugins] = useState<Array<{ name: string; version: string; toolCount: number }>>([])
   const [pluginFeedback, setPluginFeedback] = useState<string | null>(null)
 
+  // Marketplace state
+  const [pluginTab, setPluginTab] = useState<'installed' | 'marketplace'>('installed')
+  const [registryPlugins, setRegistryPlugins] = useState<Array<{ name: string; displayName: string; version: string; description: string; author: string; downloadUrl: string; sha256: string; tools: string[]; homepage: string }>>([])
+  const [registryLoading, setRegistryLoading] = useState(false)
+  const [registryError, setRegistryError] = useState<string | null>(null)
+  const [installingPlugin, setInstallingPlugin] = useState<string | null>(null)
+  const [customRegistryUrl, setCustomRegistryUrl] = useState('')
+
   // OAuth state
   const [githubAuthStatus, setGithubAuthStatus] = useState<'idle' | 'pending' | 'complete' | 'error'>('idle')
   const [githubUserCode, setGithubUserCode] = useState('')
@@ -79,10 +87,18 @@ export default function SettingsView({
   const [qwenUserCode, setQwenUserCode] = useState('')
   const [qwenVerifyUri, setQwenVerifyUri] = useState('')
   const [qwenAuthError, setQwenAuthError] = useState('')
+  const [qwenValidating, setQwenValidating] = useState(false)
+  const [qwenValidationResult, setQwenValidationResult] = useState<{ valid: boolean; models?: string[]; error?: string } | null>(null)
   const [googleAuthStatus, setGoogleAuthStatus] = useState<'idle' | 'pending' | 'complete' | 'error'>('idle')
   const [googleAuthError, setGoogleAuthError] = useState('')
   const [geminiImportStatus, setGeminiImportStatus] = useState<'idle' | 'success' | 'error'>('idle')
   const [geminiImportError, setGeminiImportError] = useState('')
+  const [geminiValidating, setGeminiValidating] = useState(false)
+  const [geminiValidationResult, setGeminiValidationResult] = useState<{ valid: boolean; models?: string[]; error?: string } | null>(null)
+  const [showGoogleOAuthGuide, setShowGoogleOAuthGuide] = useState(false)
+  const [googleOAuthClientId, setGoogleOAuthClientId] = useState('')
+  const [googleOAuthClientStatus, setGoogleOAuthClientStatus] = useState<'idle' | 'pending' | 'complete' | 'error'>('idle')
+  const [googleOAuthClientError, setGoogleOAuthClientError] = useState('')
 
   const theme = settings?.theme || 'dark'
   const defaultProvider = settings?.defaultProvider || 'openai'
@@ -129,6 +145,37 @@ export default function SettingsView({
     } catch (err) {
       setPluginFeedback(`Failed to unload plugin: ${err instanceof Error ? err.message : String(err)}`)
     }
+    setTimeout(() => setPluginFeedback(null), 3000)
+  }, [loadPlugins])
+
+  const handleRefreshRegistry = useCallback(async () => {
+    setRegistryLoading(true)
+    setRegistryError(null)
+    try {
+      const url = customRegistryUrl || undefined
+      const plugins = await window.api.pluginsFetchRegistry(url)
+      setRegistryPlugins(plugins)
+    } catch (err) {
+      setRegistryError(err instanceof Error ? err.message : String(err))
+    }
+    setRegistryLoading(false)
+  }, [customRegistryUrl])
+
+  const handleInstallFromRegistry = useCallback(async (entry: { name: string; displayName: string; version: string; description: string; author: string; downloadUrl: string; sha256: string; tools: string[]; homepage: string }) => {
+    setInstallingPlugin(entry.name)
+    try {
+      const result = await window.api.pluginsInstallFromRegistry(entry)
+      if (result.success) {
+        setPluginFeedback(`Plugin "${entry.name}" installed successfully`)
+        await loadPlugins()
+        setPluginTab('installed')
+      } else {
+        setPluginFeedback(`Failed to install "${entry.name}": ${result.error}`)
+      }
+    } catch (err) {
+      setPluginFeedback(`Failed to install "${entry.name}": ${err instanceof Error ? err.message : String(err)}`)
+    }
+    setInstallingPlugin(null)
     setTimeout(() => setPluginFeedback(null), 3000)
   }, [loadPlugins])
 
@@ -319,6 +366,31 @@ export default function SettingsView({
     setTimeout(poll, intervalMs * 1000)
   }, [])
 
+  const handleQwenValidate = useCallback(async () => {
+    const key = apiKeyInputs['qwen']
+    if (!key || key.length < 4) {
+      setQwenValidationResult({ valid: false, error: 'Enter an API key first' })
+      return
+    }
+    setQwenValidating(true)
+    setQwenValidationResult(null)
+    try {
+      const result = await window.api.authValidateQwen(key)
+      setQwenValidationResult(result)
+    } catch (err) {
+      setQwenValidationResult({ valid: false, error: err instanceof Error ? err.message : String(err) })
+    }
+    setQwenValidating(false)
+  }, [apiKeyInputs])
+
+  const handleQwenOpenConsole = useCallback(async () => {
+    try {
+      await window.api.authOpenQwenConsole()
+    } catch (err) {
+      console.error('Failed to open Qwen console:', err)
+    }
+  }, [])
+
   const handleGoogleAuthStart = useCallback(async () => {
     setGoogleAuthStatus('pending')
     setGoogleAuthError('')
@@ -364,6 +436,72 @@ export default function SettingsView({
       setGeminiImportError(err instanceof Error ? err.message : String(err))
     }
   }, [])
+
+  const handleGeminiValidate = useCallback(async () => {
+    const key = apiKeyInputs['gemini']
+    if (!key || key.length < 4) {
+      setGeminiValidationResult({ valid: false, error: 'Enter an API key first' })
+      return
+    }
+    setGeminiValidating(true)
+    setGeminiValidationResult(null)
+    try {
+      const result = await window.api.authValidateGemini(key)
+      setGeminiValidationResult(result)
+    } catch (err) {
+      setGeminiValidationResult({ valid: false, error: err instanceof Error ? err.message : String(err) })
+    }
+    setGeminiValidating(false)
+  }, [apiKeyInputs])
+
+  const handleGoogleOAuthGuideOpen = useCallback(() => {
+    setShowGoogleOAuthGuide(true)
+  }, [])
+
+  const handleGoogleOAuthGuideClose = useCallback(() => {
+    setShowGoogleOAuthGuide(false)
+  }, [])
+
+  const handleGoogleOAuthConsoleOpen = useCallback(async () => {
+    try {
+      await window.api.authOpenGoogleConsole()
+    } catch (err) {
+      console.error('Failed to open Google Cloud Console:', err)
+    }
+  }, [])
+
+  const handleGoogleOAuthClientStart = useCallback(async () => {
+    if (!googleOAuthClientId || googleOAuthClientId.includes('your-google-client-id')) {
+      setGoogleOAuthClientStatus('error')
+      setGoogleOAuthClientError('Please enter a valid Google Cloud OAuth Client ID.')
+      return
+    }
+    setGoogleOAuthClientStatus('pending')
+    setGoogleOAuthClientError('')
+    try {
+      const result = await window.api.authGoogleOAuthStart(googleOAuthClientId)
+      if (result.status === 'pending') {
+        window.open(result.authUrl, '_blank')
+        // Wait for callback to resolve
+        setGoogleOAuthClientStatus('complete')
+        setFeedback('Google OAuth authenticated successfully!')
+        setTimeout(() => setFeedback(null), 3000)
+      } else if (result.status === 'error') {
+        setGoogleOAuthClientStatus('error')
+        setGoogleOAuthClientError(result.error || 'Unknown error')
+      }
+    } catch (err) {
+      setGoogleOAuthClientStatus('error')
+      setGoogleOAuthClientError(err instanceof Error ? err.message : String(err))
+    }
+  }, [googleOAuthClientId])
+
+  const handleGoogleOAuthClientStop = useCallback(async () => {
+    try {
+      await window.api.authGoogleOAuthStop(googleOAuthClientId)
+    } catch {}
+    setGoogleOAuthClientStatus('idle')
+  }, [googleOAuthClientId])
 
   // -----------------------------------------------------------------------
   // GitHub device flow handlers (TASK 4b)
@@ -606,6 +744,14 @@ export default function SettingsView({
               onDeleteKey={() => handleDeleteKey(config.id)}
               onGithubConnect={handleGithubConnect}
               onGeminiImport={handleGeminiCredsImport}
+              onGeminiValidate={config.id === 'gemini' ? handleGeminiValidate : undefined}
+              onGeminiOAuthGuide={config.id === 'gemini' ? handleGoogleOAuthGuideOpen : undefined}
+              geminiValidating={config.id === 'gemini' ? geminiValidating : false}
+              geminiValidationResult={config.id === 'gemini' ? geminiValidationResult : null}
+              onQwenValidate={config.id === 'qwen' ? handleQwenValidate : undefined}
+              onQwenOpenConsole={config.id === 'qwen' ? handleQwenOpenConsole : undefined}
+              qwenValidating={config.id === 'qwen' ? qwenValidating : false}
+              qwenValidationResult={config.id === 'qwen' ? qwenValidationResult : null}
             />
           )
         })}
@@ -707,6 +853,138 @@ export default function SettingsView({
                 }}
               >
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Google OAuth Guide Modal */}
+      {showGoogleOAuthGuide && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 2000,
+          }}
+          onClick={handleGoogleOAuthGuideClose}
+        >
+          <div
+            style={{
+              backgroundColor: '#161b22',
+              border: '1px solid #30363d',
+              borderRadius: '12px',
+              padding: '24px',
+              minWidth: 440,
+              maxWidth: 520,
+              maxHeight: '80vh',
+              overflowY: 'auto',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 style={{ margin: '0 0 16px', fontSize: 18, color: '#f0f6fc' }}>
+              Setup Google OAuth
+            </h2>
+
+            <div style={{ fontSize: '0.85rem', color: '#8b949e', marginBottom: 16 }}>
+              Follow these steps to get your Google Cloud OAuth Client ID:
+            </div>
+
+            <ol style={{ fontSize: '0.85rem', color: '#c9d1d9', paddingLeft: 20, marginBottom: 20, lineHeight: 1.6 }}>
+              <li>Go to the <button onClick={handleGoogleOAuthConsoleOpen} style={{ background: 'none', border: 'none', color: '#58a6ff', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}>Google Cloud Console</button> and create a new project (or select existing).</li>
+              <li>Enable the &quot;Google Cloud Resource Manager API&quot; in API &amp; Services &gt; Library.</li>
+              <li>Go to APIs &amp; Services &gt; OAuth consent screen and configure it (External or Internal).</li>
+              <li>Go to Credentials &gt; Create Credentials &gt; OAuth client ID. Choose &quot;Web application&quot;, add <code style={{ backgroundColor: '#0d1117', padding: '2px 6px', borderRadius: 4 }}>http://127.0.0.1:9876/callback</code> as an Authorized redirect URI.</li>
+            </ol>
+
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: '0.85rem', color: '#8b949e', display: 'block', marginBottom: 6 }}>
+                OAuth Client ID
+              </label>
+              <input
+                type="text"
+                placeholder="xxxxx.apps.googleusercontent.com"
+                value={googleOAuthClientId}
+                onChange={(e) => setGoogleOAuthClientId(e.target.value)}
+                style={{
+                  backgroundColor: '#0d1117',
+                  border: '1px solid #30363d',
+                  borderRadius: 6,
+                  color: '#c9d1d9',
+                  padding: '8px 12px',
+                  fontSize: '0.85rem',
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  outline: 'none',
+                }}
+              />
+            </div>
+
+            {googleOAuthClientError && (
+              <div style={{ fontSize: '0.8rem', color: '#f85149', marginBottom: 12 }}>
+                {googleOAuthClientError}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+              {googleOAuthClientStatus === 'pending' && (
+                <span style={{ fontSize: '0.85rem', color: '#d29922', marginRight: 'auto', alignSelf: 'center' }}>
+                  Authorizing...
+                </span>
+              )}
+              {googleOAuthClientStatus === 'complete' && (
+                <span style={{ fontSize: '0.85rem', color: '#3fb950', marginRight: 'auto', alignSelf: 'center' }}>
+                  Authenticated!
+                </span>
+              )}
+              {googleOAuthClientStatus === 'idle' || googleOAuthClientStatus === 'error' ? (
+                <button
+                  onClick={handleGoogleOAuthClientStart}
+                  style={{
+                    backgroundColor: '#238636',
+                    border: '1px solid #2ea043',
+                    color: '#fff',
+                    padding: '8px 20px',
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                    fontSize: 14,
+                  }}
+                >
+                  Start OAuth
+                </button>
+              ) : googleOAuthClientStatus === 'pending' ? (
+                <button
+                  onClick={handleGoogleOAuthClientStop}
+                  style={{
+                    backgroundColor: 'transparent',
+                    color: '#8b949e',
+                    border: '1px solid #30363d',
+                    padding: '8px 20px',
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                    fontSize: 14,
+                  }}
+                >
+                  Cancel
+                </button>
+              ) : null}
+              <button
+                onClick={handleGoogleOAuthGuideClose}
+                style={{
+                  backgroundColor: 'transparent',
+                  color: '#8b949e',
+                  border: '1px solid #30363d',
+                  padding: '8px 20px',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  fontSize: 14,
+                }}
+              >
+                Close
               </button>
             </div>
           </div>
@@ -1192,24 +1470,35 @@ export default function SettingsView({
 
       {/* Plugins */}
       <Section title="Plugins">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <div style={{ fontSize: '0.85rem', color: '#8b949e' }}>
-            Manage community plugins that extend agent capabilities with custom tools.
-          </div>
+        {/* Tab bar */}
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
           <button
-            onClick={handleInstallPlugin}
+            onClick={() => setPluginTab('installed')}
             style={{
-              backgroundColor: '#238636',
-              border: '1px solid #2ea043',
-              color: '#fff',
+              backgroundColor: pluginTab === 'installed' ? '#238636' : '#21262d',
+              border: `1px solid ${pluginTab === 'installed' ? '#2ea043' : '#30363d'}`,
+              color: pluginTab === 'installed' ? '#fff' : '#8b949e',
               padding: '6px 14px',
               borderRadius: '6px',
               cursor: 'pointer',
               fontSize: '0.8rem',
-              whiteSpace: 'nowrap',
             }}
           >
-            + Install Plugin
+            Installed
+          </button>
+          <button
+            onClick={() => setPluginTab('marketplace')}
+            style={{
+              backgroundColor: pluginTab === 'marketplace' ? '#238636' : '#21262d',
+              border: `1px solid ${pluginTab === 'marketplace' ? '#2ea043' : '#30363d'}`,
+              color: pluginTab === 'marketplace' ? '#fff' : '#8b949e',
+              padding: '6px 14px',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '0.8rem',
+            }}
+          >
+            Marketplace
           </button>
         </div>
 
@@ -1231,68 +1520,270 @@ export default function SettingsView({
           </div>
         )}
 
-        {installedPlugins.length === 0 && (
-          <div
-            style={{
-              backgroundColor: '#161b22',
-              border: '1px solid #30363d',
-              borderRadius: '10px',
-              padding: '24px',
-              textAlign: 'center',
-              color: '#484f58',
-              fontSize: '0.85rem',
-            }}
-          >
-            No plugins installed. Click &quot;+ Install Plugin&quot; to select a plugin directory.
-          </div>
+        {/* Installed tab */}
+        {pluginTab === 'installed' && (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div style={{ fontSize: '0.85rem', color: '#8b949e' }}>
+                Manage community plugins that extend agent capabilities with custom tools.
+              </div>
+              <button
+                onClick={handleInstallPlugin}
+                style={{
+                  backgroundColor: '#238636',
+                  border: '1px solid #2ea043',
+                  color: '#fff',
+                  padding: '6px 14px',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '0.8rem',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                + Install Plugin
+              </button>
+            </div>
+
+            {installedPlugins.length === 0 && (
+              <div
+                style={{
+                  backgroundColor: '#161b22',
+                  border: '1px solid #30363d',
+                  borderRadius: '10px',
+                  padding: '24px',
+                  textAlign: 'center',
+                  color: '#484f58',
+                  fontSize: '0.85rem',
+                }}
+              >
+                No plugins installed. Click &quot;+ Install Plugin&quot; to select a plugin directory.
+              </div>
+            )}
+
+            {installedPlugins.map((plugin) => (
+              <div
+                key={plugin.name}
+                style={{
+                  backgroundColor: '#161b22',
+                  border: '1px solid #30363d',
+                  borderRadius: '10px',
+                  padding: '16px 20px',
+                  marginBottom: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '16px',
+                }}
+              >
+                <div
+                  style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: '50%',
+                    backgroundColor: '#3fb950',
+                    boxShadow: '0 0 6px #3fb950',
+                    flexShrink: 0,
+                  }}
+                />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: '0.95rem', color: '#58a6ff' }}>{plugin.name}</div>
+                  <div style={{ fontSize: '0.8rem', color: '#484f58', marginTop: '2px' }}>
+                    v{plugin.version} &middot; {plugin.toolCount} tool{plugin.toolCount !== 1 ? 's' : ''}
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleUnloadPlugin(plugin.name)}
+                  style={{
+                    backgroundColor: 'rgba(248, 81, 73, 0.15)',
+                    border: '1px solid rgba(248, 81, 73, 0.3)',
+                    color: '#f85149',
+                    padding: '4px 10px',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '0.75rem',
+                  }}
+                >
+                  Unload
+                </button>
+              </div>
+            ))}
+          </>
         )}
 
-        {installedPlugins.map((plugin) => (
-          <div
-            key={plugin.name}
-            style={{
-              backgroundColor: '#161b22',
-              border: '1px solid #30363d',
-              borderRadius: '10px',
-              padding: '16px 20px',
-              marginBottom: '12px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '16px',
-            }}
-          >
+        {/* Marketplace tab */}
+        {pluginTab === 'marketplace' && (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div style={{ fontSize: '0.85rem', color: '#8b949e' }}>
+                Browse and install community plugins from the registry.
+              </div>
+              <button
+                onClick={handleRefreshRegistry}
+                disabled={registryLoading}
+                style={{
+                  backgroundColor: registryLoading ? '#21262d' : '#238636',
+                  border: '1px solid #2ea043',
+                  color: registryLoading ? '#484f58' : '#fff',
+                  padding: '6px 14px',
+                  borderRadius: '6px',
+                  cursor: registryLoading ? 'not-allowed' : 'pointer',
+                  fontSize: '0.8rem',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {registryLoading ? 'Loading...' : 'Refresh'}
+              </button>
+            </div>
+
+            {registryError && (
+              <div
+                style={{
+                  padding: '10px 16px',
+                  marginBottom: '16px',
+                  borderRadius: '8px',
+                  backgroundColor: 'rgba(248, 81, 73, 0.15)',
+                  border: '1px solid rgba(248, 81, 73, 0.3)',
+                  color: '#f85149',
+                  fontSize: '0.85rem',
+                }}
+              >
+                {registryError}
+              </div>
+            )}
+
+            {registryPlugins.length === 0 && !registryLoading && !registryError && (
+              <div
+                style={{
+                  backgroundColor: '#161b22',
+                  border: '1px solid #30363d',
+                  borderRadius: '10px',
+                  padding: '24px',
+                  textAlign: 'center',
+                  color: '#484f58',
+                  fontSize: '0.85rem',
+                }}
+              >
+                No plugins found. Click &quot;Refresh&quot; to load the registry.
+              </div>
+            )}
+
+            {registryPlugins.map((plugin) => (
+              <div
+                key={plugin.name}
+                style={{
+                  backgroundColor: '#161b22',
+                  border: '1px solid #30363d',
+                  borderRadius: '10px',
+                  padding: '16px 20px',
+                  marginBottom: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '16px',
+                }}
+              >
+                <div
+                  style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: '50%',
+                    backgroundColor: '#58a6ff',
+                    boxShadow: '0 0 6px #58a6ff',
+                    flexShrink: 0,
+                  }}
+                />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: '0.95rem', color: '#58a6ff' }}>{plugin.displayName || plugin.name}</div>
+                  <div style={{ fontSize: '0.8rem', color: '#8b949e', marginTop: '2px' }}>
+                    v{plugin.version} &middot; by {plugin.author}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#484f58', marginTop: '4px' }}>
+                    {plugin.description}
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: '#484f58', marginTop: '4px' }}>
+                    {plugin.tools.length} tool{plugin.tools.length !== 1 ? 's' : ''}: {plugin.tools.join(', ')}
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleInstallFromRegistry(plugin)}
+                  disabled={installingPlugin === plugin.name}
+                  style={{
+                    backgroundColor: installingPlugin === plugin.name ? '#21262d' : '#238636',
+                    border: '1px solid #2ea043',
+                    color: installingPlugin === plugin.name ? '#484f58' : '#fff',
+                    padding: '6px 14px',
+                    borderRadius: '6px',
+                    cursor: installingPlugin === plugin.name ? 'not-allowed' : 'pointer',
+                    fontSize: '0.8rem',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {installingPlugin === plugin.name ? 'Installing...' : 'Install'}
+                </button>
+              </div>
+            ))}
+
+            {registryLoading && (
+              <div
+                style={{
+                  textAlign: 'center',
+                  padding: '24px',
+                  color: '#484f58',
+                  fontSize: '0.85rem',
+                }}
+              >
+                Loading registry...
+              </div>
+            )}
+
+            {/* Custom registry URL */}
             <div
               style={{
-                width: 10,
-                height: 10,
-                borderRadius: '50%',
-                backgroundColor: '#3fb950',
-                boxShadow: '0 0 6px #3fb950',
-                flexShrink: 0,
-              }}
-            />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 600, fontSize: '0.95rem', color: '#58a6ff' }}>{plugin.name}</div>
-              <div style={{ fontSize: '0.8rem', color: '#484f58', marginTop: '2px' }}>
-                v{plugin.version} &middot; {plugin.toolCount} tool{plugin.toolCount !== 1 ? 's' : ''}
-              </div>
-            </div>
-            <button
-              onClick={() => handleUnloadPlugin(plugin.name)}
-              style={{
-                backgroundColor: 'rgba(248, 81, 73, 0.15)',
-                border: '1px solid rgba(248, 81, 73, 0.3)',
-                color: '#f85149',
-                padding: '4px 10px',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontSize: '0.75rem',
+                backgroundColor: '#161b22',
+                border: '1px solid #30363d',
+                borderRadius: '10px',
+                padding: '16px 20px',
+                marginTop: '16px',
               }}
             >
-              Unload
-            </button>
-          </div>
-        ))}
+              <div style={{ fontSize: '0.85rem', color: '#8b949e', marginBottom: '8px' }}>
+                Add Registry URL
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input
+                  type="text"
+                  placeholder="https://example.com/registry.json"
+                  value={customRegistryUrl}
+                  onChange={(e) => setCustomRegistryUrl(e.target.value)}
+                  style={{
+                    flex: 1,
+                    backgroundColor: '#0d1117',
+                    border: '1px solid #30363d',
+                    borderRadius: '6px',
+                    color: '#c9d1d9',
+                    padding: '8px 12px',
+                    fontSize: '0.85rem',
+                    outline: 'none',
+                  }}
+                />
+                <button
+                  onClick={handleRefreshRegistry}
+                  disabled={registryLoading || !customRegistryUrl}
+                  style={{
+                    backgroundColor: customRegistryUrl && !registryLoading ? '#238636' : '#21262d',
+                    border: '1px solid #2ea043',
+                    color: customRegistryUrl && !registryLoading ? '#fff' : '#484f58',
+                    padding: '8px 16px',
+                    borderRadius: '6px',
+                    cursor: customRegistryUrl && !registryLoading ? 'pointer' : 'not-allowed',
+                    fontSize: '0.8rem',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Load
+                </button>
+              </div>
+            </div>
+          </>
+        )}
       </Section>
 
       {/* General */}
@@ -1666,6 +2157,14 @@ interface ProviderCardProps {
   onDeleteKey: () => void
   onGithubConnect: () => void
   onGeminiImport: () => void
+  onGeminiValidate?: () => void
+  onGeminiOAuthGuide?: () => void
+  geminiValidating?: boolean
+  geminiValidationResult?: { valid: boolean; models?: string[]; error?: string } | null
+  onQwenValidate?: () => void
+  onQwenOpenConsole?: () => void
+  qwenValidating?: boolean
+  qwenValidationResult?: { valid: boolean; models?: string[]; error?: string } | null
 }
 
 function ProviderCard({
@@ -1682,6 +2181,14 @@ function ProviderCard({
   onDeleteKey,
   onGithubConnect,
   onGeminiImport,
+  onGeminiValidate,
+  onGeminiOAuthGuide,
+  geminiValidating,
+  geminiValidationResult,
+  onQwenValidate,
+  onQwenOpenConsole,
+  qwenValidating,
+  qwenValidationResult,
 }: ProviderCardProps) {
   const isConnected = hasKey || status === 'connected'
 
@@ -1773,7 +2280,77 @@ function ProviderCard({
               >
                 {savingKey ? 'Saving...' : 'Save'}
               </button>
+              {config.id === 'qwen' && onQwenValidate && (
+                <>
+                  <button
+                    onClick={onQwenValidate}
+                    disabled={qwenValidating || !apiKeyInput}
+                    style={{
+                      backgroundColor: qwenValidating ? '#21262d' : 'rgba(97, 94, 240, 0.15)',
+                      border: '1px solid rgba(97, 94, 240, 0.3)',
+                      color: qwenValidating ? '#484f58' : '#615ef0',
+                      padding: '6px 14px',
+                      borderRadius: '6px',
+                      cursor: qwenValidating || !apiKeyInput ? 'not-allowed' : 'pointer',
+                      fontSize: '0.8rem',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {qwenValidating ? 'Validating...' : 'Validate'}
+                  </button>
+                  {onQwenOpenConsole && (
+                    <button
+                      onClick={onQwenOpenConsole}
+                      style={{
+                        backgroundColor: '#21262d',
+                        border: '1px solid #30363d',
+                        color: '#8b949e',
+                        padding: '6px 14px',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontSize: '0.8rem',
+                        whiteSpace: 'nowrap',
+                      }}
+                      title="Open DashScope Console"
+                    >
+                      Open Console
+                    </button>
+                  )}
+                </>
+              )}
             </>
+          )}
+
+          {config.id === 'qwen' && qwenValidationResult && (
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '6px' }}>
+              {qwenValidationResult.valid
+                ? (
+                  <span style={{ fontSize: '0.8rem', color: '#3fb950' }}>
+                    Valid! ({qwenValidationResult.models?.length || 0} models available)
+                  </span>
+                )
+                : (
+                  <span style={{ fontSize: '0.8rem', color: '#f85149' }}>
+                    {qwenValidationResult.error}
+                  </span>
+                )}
+            </div>
+          )}
+
+          {config.id === 'gemini' && geminiValidationResult && (
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '6px' }}>
+              {geminiValidationResult.valid
+                ? (
+                  <span style={{ fontSize: '0.8rem', color: '#3fb950' }}>
+                    Valid! ({geminiValidationResult.models?.length || 0} models available)
+                  </span>
+                )
+                : (
+                  <span style={{ fontSize: '0.8rem', color: '#f85149' }}>
+                    {geminiValidationResult.error}
+                  </span>
+                )}
+            </div>
           )}
 
           {config.connectionMethod === 'oauth' && config.id === 'copilot' && (
@@ -1795,7 +2372,23 @@ function ProviderCard({
           )}
 
           {config.connectionMethod === 'import' && config.id === 'gemini' && (
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <button
+                onClick={onGeminiValidate}
+                disabled={geminiValidating || !apiKeyInput}
+                style={{
+                  backgroundColor: geminiValidating ? '#21262d' : 'rgba(66, 133, 244, 0.15)',
+                  border: '1px solid rgba(66, 133, 244, 0.3)',
+                  color: geminiValidating ? '#484f58' : '#4285f4',
+                  padding: '6px 14px',
+                  borderRadius: '6px',
+                  cursor: geminiValidating || !apiKeyInput ? 'not-allowed' : 'pointer',
+                  fontSize: '0.8rem',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {geminiValidating ? 'Validating...' : 'Validate'}
+              </button>
               <button
                 onClick={onGeminiImport}
                 disabled={geminiCredsImporting}
@@ -1812,6 +2405,23 @@ function ProviderCard({
               >
                 {geminiCredsImporting ? 'Importing...' : 'Import from ~/.gemini/'}
               </button>
+              {onGeminiOAuthGuide && (
+                <button
+                  onClick={onGeminiOAuthGuide}
+                  style={{
+                    backgroundColor: '#21262d',
+                    border: '1px solid #30363d',
+                    color: '#8b949e',
+                    padding: '6px 14px',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '0.8rem',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Setup Google OAuth
+                </button>
+              )}
               {geminiCredsImportResult === 'success' && (
                 <span style={{ fontSize: '0.8rem', color: '#3fb950' }}>\u2705 Imported!</span>
               )}

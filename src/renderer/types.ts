@@ -273,8 +273,14 @@ declare global {
       authGithubPoll: () => Promise<GithubDeviceAuthResult>
       authQwenDevice: () => Promise<GithubDeviceAuthResult>
       authQwenPoll: () => Promise<GithubDeviceAuthResult>
+      authValidateQwen: (apiKey: string) => Promise<{ valid: boolean; models?: string[]; error?: string }>
+      authOpenQwenConsole: () => Promise<{ ok: boolean; error?: string }>
       authGoogleOAuth: (start: boolean, port?: number) => Promise<GoogleOAuthResult>
       authImportGemini: () => Promise<GeminiImportResult>
+      authValidateGemini: (apiKey: string) => Promise<{ valid: boolean; models?: string[]; error?: string }>
+      authGoogleOAuthStart: (clientId: string) => Promise<GoogleOAuthResult>
+      authGoogleOAuthStop: (clientId: string) => Promise<GoogleOAuthResult>
+      authOpenGoogleConsole: () => Promise<{ ok: boolean; error?: string }>
 
       // Auth device flow (TASK 4d)
       authConnect: (providerId: string) => Promise<{ user_code: string; verification_uri: string; error?: string }>
@@ -331,6 +337,8 @@ declare global {
       pluginsList: () => Promise<Array<{ name: string; version: string; toolCount: number }>>
       pluginsInstall: (dir: string) => Promise<{ success: boolean; name?: string; error?: string }>
       pluginsUnload: (name: string) => Promise<{ ok: boolean }>
+      pluginsFetchRegistry: (url?: string) => Promise<Array<{ name: string; displayName: string; version: string; description: string; author: string; downloadUrl: string; sha256: string; tools: string[]; homepage: string }>>
+      pluginsInstallFromRegistry: (entry: unknown) => Promise<{ success: boolean; error?: string }>
 
       // Computer Use (Phase 7 - TASK 4)
       cuScreenshot: () => Promise<{ success: boolean; screenshot?: string; error?: string }>

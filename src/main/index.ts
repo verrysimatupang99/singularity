@@ -38,6 +38,10 @@ import {
   importGeminiCliCredentials,
   initiateGitHubDeviceFlow,
   pollGitHubDeviceToken,
+  validateQwenApiKey,
+  openQwenApiKeyPage,
+  validateGeminiApiKey,
+  googleOAuthWithClientId,
 } from './services/oauthService.js'
 import { pluginLoader } from './services/pluginLoader.js'
 import { computerUseController } from './services/computerUse.js'
@@ -779,6 +783,34 @@ ipcMain.handle('auth:import-gemini', async () => {
   }
 })
 
+ipcMain.handle('auth:validate-qwen', async (_event, apiKey: string) => {
+  try {
+    return await validateQwenApiKey(apiKey)
+  } catch (err) {
+    console.error('auth:validate-qwen error:', err)
+    return { valid: false, error: err instanceof Error ? err.message : String(err) }
+  }
+})
+
+ipcMain.handle('auth:open-qwen-console', async () => {
+  try {
+    await openQwenApiKeyPage()
+    return { ok: true }
+  } catch (err) {
+    console.error('auth:open-qwen-console error:', err)
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
+})
+
+ipcMain.handle('auth:validate-gemini', async (_event, apiKey: string) => validateGeminiApiKey(apiKey))
+ipcMain.handle('auth:google-oauth-start', async (_event, clientId: string) => googleOAuthWithClientId(clientId, true))
+ipcMain.handle('auth:google-oauth-stop', async (_event, clientId: string) => googleOAuthWithClientId(clientId, false))
+ipcMain.handle('auth:open-google-cloud-console', async () => {
+  const { shell } = await import('electron')
+  await shell.openExternal('https://console.cloud.google.com/apis/credentials')
+  return { ok: true }
+})
+
 // ---------------------------------------------------------------------------
 // Provider Registry (TASK 4)
 // ---------------------------------------------------------------------------
@@ -1271,6 +1303,8 @@ ipcMain.handle('orchestrator:execute', async (_event, { plan, workspaceRoot, pro
 ipcMain.handle('plugins:list', () => pluginLoader.getLoadedPlugins().map(p => ({ name: p.name, version: p.version, toolCount: p.tools.length })))
 ipcMain.handle('plugins:install', async (_event, pluginDir: string) => pluginLoader.installPlugin(pluginDir))
 ipcMain.handle('plugins:unload', (_event, name: string) => { pluginLoader.unloadPlugin(name); return { ok: true } })
+ipcMain.handle('plugins:fetchRegistry', async (_event, url?: string) => pluginLoader.fetchRegistry(url))
+ipcMain.handle('plugins:installFromRegistry', async (_event, entry: any) => pluginLoader.installFromRegistry(entry))
 
 // ---------------------------------------------------------------------------
 // Computer Use (Phase 7 - TASK 4)
