@@ -1,0 +1,108 @@
+{
+  "name": "singularity",
+  "version": "0.1.0",
+  "description": "Multi-provider AI coding agent desktop app",
+  "type": "module",
+  "main": "dist/main/index.js",
+  "author": "",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "lint": "eslint src/ --ext .ts,.tsx",
+    "lint:fix": "eslint src/ --ext .ts,.tsx --fix",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "package": "electron-builder",
+    "package:linux": "electron-builder --linux deb appimage",
+    "package:macos": "electron-builder --mac dmg",
+    "package:win": "electron-builder --win nsis"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.40.0",
+    "electron": "34.3.2",
+    "electron-log": "^5.2.4",
+    "electron-store": "^10.0.0",
+    "electron-updater": "^6.3.9",
+    "highlight.js": "^11.11.1",
+    "lucide-react": "^0.503.0",
+    "marked": "^15.0.11",
+    "openai": "^4.96.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.1.2",
+    "@types/react-dom": "^19.1.2",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron-builder": "^25.1.8",
+    "eslint": "^9.11.1",
+    "eslint-plugin-react": "^7.37.5",
+    "typescript": "^5.8.0",
+    "vite": "^6.1.0",
+    "vite-plugin-electron": "^0.28.8",
+    "vite-plugin-electron-renderer": "^0.14.6",
+    "vitest": "^3.0.0"
+  },
+  "build": {
+    "appId": "com.singularity.app",
+    "productName": "Singularity",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "extraResources": [],
+    "linux": {
+      "target": ["deb", "AppImage"],
+      "category": "Development",
+      "icon": "build/icon.png",
+      "desktop": {
+        "Name": "Singularity",
+        "Comment": "Multi-provider AI coding agent desktop app",
+        "Keywords": "AI;coding;developer;"
+      }
+    },
+    "mac": {
+      "target": ["dmg"],
+      "category": "public.app-category.developer-tools",
+      "icon": "build/icon.icns",
+      "notarize": false,
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false
+    },
+    "win": {
+      "target": ["nsis"],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "dmg": {
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
+    "deb": {
+      "depends": ["libnss3", "libatk-bridge2.0-0", "libgtk-3-0"]
+    }
+  }
+}
