@@ -10,6 +10,8 @@ export interface PanelState {
   agent: { open: boolean; width: number }
   orchestrator: { open: boolean; width: number }
   computerUse: { open: boolean; width: number }
+  memoryBrowser: { open: boolean; width: number }
+  tokenDashboard: { open: boolean; width: number }
 }
 
 const DEFAULT_PANELS: PanelState = {
@@ -22,6 +24,8 @@ const DEFAULT_PANELS: PanelState = {
   agent: { open: false, width: 420 },
   orchestrator: { open: false, width: 420 },
   computerUse: { open: false, width: 420 },
+  memoryBrowser: { open: false, width: 420 },
+  tokenDashboard: { open: false, width: 420 },
 }
 
 interface LayoutState {
@@ -35,7 +39,7 @@ interface LayoutState {
 
 type LayoutAction =
   | { type: 'TOGGLE_PANEL'; panel: keyof PanelState }
-  | { type: 'SET_PANEL_WIDTH'; panel: 'sidebar' | 'fileTree' | 'chat'; width: number }
+  | { type: 'SET_PANEL_WIDTH'; panel: 'sidebar' | 'fileTree' | 'search' | 'chat' | 'agent' | 'orchestrator' | 'computerUse' | 'memoryBrowser' | 'tokenDashboard'; width: number }
   | { type: 'SET_TERMINAL_HEIGHT'; height: number }
   | { type: 'SET_ACTIVE_FILE'; path: string | null }
   | { type: 'OPEN_FILE'; path: string }
@@ -111,7 +115,7 @@ function layoutReducer(state: LayoutState, action: LayoutAction): LayoutState {
 export interface LayoutContextType {
   panels: PanelState
   togglePanel: (panel: keyof PanelState) => void
-  setPanelWidth: (panel: 'sidebar' | 'fileTree' | 'search' | 'chat' | 'agent' | 'orchestrator' | 'computerUse', width: number) => void
+  setPanelWidth: (panel: 'sidebar' | 'fileTree' | 'search' | 'chat' | 'agent' | 'orchestrator' | 'computerUse' | 'memoryBrowser' | 'tokenDashboard', width: number) => void
   setTerminalHeight: (height: number) => void
   activeFile: string | null
   setActiveFile: (path: string | null) => void
@@ -141,7 +145,7 @@ export function LayoutProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'TOGGLE_PANEL', panel })
   }, [])
 
-  const setPanelWidth = useCallback((panel: 'sidebar' | 'fileTree' | 'search' | 'chat' | 'agent' | 'orchestrator' | 'computerUse', width: number) => {
+  const setPanelWidth = useCallback((panel: 'sidebar' | 'fileTree' | 'search' | 'chat' | 'agent' | 'orchestrator' | 'computerUse' | 'memoryBrowser' | 'tokenDashboard', width: number) => {
     dispatch({ type: 'SET_PANEL_WIDTH', panel, width: Math.max(150, Math.min(800, width)) })
   }, [])
 

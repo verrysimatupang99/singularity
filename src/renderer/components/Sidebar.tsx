@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Session, ProviderInfo } from '../types'
+import { ExternalLink } from 'lucide-react'
 
 const SIDEBAR_WIDTH = 280
 
@@ -270,6 +271,11 @@ function SessionItem({
 }) {
   const [hovered, setHovered] = useState(false)
 
+  const handleOpenInNewWindow = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    await window.api.openNewWindow({ route: '#/editor' })
+  }
+
   return (
     <div
       onMouseEnter={() => setHovered(true)}
@@ -333,6 +339,28 @@ function SessionItem({
           )}
         </div>
       </div>
+      {hovered && (
+        <button
+          onClick={handleOpenInNewWindow}
+          title="Open in New Window"
+          style={{
+            backgroundColor: 'transparent',
+            border: 'none',
+            color: '#8b949e',
+            cursor: 'pointer',
+            padding: '4px',
+            borderRadius: '4px',
+            display: 'flex',
+            alignItems: 'center',
+            opacity: 0.7,
+            transition: 'opacity 0.15s',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = '#58a6ff' }}
+          onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.7'; e.currentTarget.style.color = '#8b949e' }}
+        >
+          <ExternalLink size={12} />
+        </button>
+      )}
       {hovered && (
         <button
           onClick={(e) => {

@@ -328,9 +328,26 @@ declare global {
       memoryGet: () => Promise<any[]>
       memoryForget: (key: string) => Promise<{ ok: boolean }>
 
+      // Token Tracker (Phase 10 - TASK 3)
+      tokenRecord: (rec: unknown) => Promise<{ ok: boolean }>
+      tokenToday: () => Promise<{ tokens: number; cost: number }>
+      tokenMonth: () => Promise<{ tokens: number; cost: number }>
+      tokenBreakdown: () => Promise<Record<string, { tokens: number; cost: number }>>
+      tokenRecent: (limit?: number) => Promise<Array<{ sessionId: string; tokens: number; cost: number; lastUsed: number }>>
+
+      // Memory Browser (Phase 10 - TASK 4)
+      memoryList: () => Promise<any[]>
+      memoryDeleteById: (id: string) => Promise<{ ok: boolean }>
+      memoryUpdate: (id: string, value: string) => Promise<{ ok: boolean }>
+      memoryClear: () => Promise<{ ok: boolean }>
+      memorySearch: (query: string) => Promise<any[]>
+      memoryRemember: (key: string, value: string, tags?: string[]) => Promise<{ ok: boolean }>
+
       // Orchestrator (Phase 7 - TASK 1)
       orchestratorPlan: (opts: { task: string; workspaceRoot: string; provider: string; model: string }) => Promise<any>
       orchestratorExecute: (opts: { plan: any; workspaceRoot: string; provider: string; model: string }) => Promise<{ orchestratorId: string }>
+      orchestratorStatus: () => Promise<{ active: boolean; orchestrators: Array<{ orchestratorId: string; status: string }> }>
+      orchestratorCancel: (orchestratorId: string) => Promise<{ ok: boolean }>
       onOrchestratorEvent: (cb: (event: unknown) => void) => () => void
 
       // Plugin System (Phase 7 - TASK 3)
@@ -358,6 +375,12 @@ declare global {
       // Onboarding (Phase 8 - TASK 2)
       storageMarkOnboardingComplete: () => Promise<{ ok: boolean }>
       storageIsFirstRun: () => Promise<boolean>
+
+      // Window Management (Phase 10 - TASK 1)
+      openNewWindow: (opts: { route?: string; width?: number; height?: number }) => Promise<{ windowId: number }>
+      closeCurrentWindow: () => Promise<{ ok: boolean }>
+      setWindowTitle: (title: string) => Promise<{ ok: boolean }>
+      listWindows: () => Promise<Array<{ id: number; title: string }>>
     }
     platform: string
   }

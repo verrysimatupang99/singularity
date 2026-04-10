@@ -19,6 +19,8 @@ const OrchestratorView = lazy(() => import('./components/OrchestratorView'))
 const AgentView = lazy(() => import('./components/AgentView'))
 const SearchPanel = lazy(() => import('./components/SearchPanel'))
 const ComputerUseView = lazy(() => import('./components/ComputerUseView'))
+const TokenDashboard = lazy(() => import('./components/TokenDashboard'))
+const MemoryBrowser = lazy(() => import('./components/MemoryBrowser'))
 
 type View = 'chat' | 'settings'
 
@@ -507,6 +509,34 @@ export default function App() {
                 </ErrorBoundary>
               </div>
               <ResizableDivider direction="vertical" onResize={(d) => setPanelWidth('computerUse', panels.computerUse.width + d)} />
+            </>
+          )}
+
+          {/* Memory Browser Panel */}
+          {panels.memoryBrowser.open && (
+            <>
+              <div style={{ width: panels.memoryBrowser.width, flexShrink: 0, overflow: 'hidden', borderRight: '1px solid #21262d' }}>
+                <ErrorBoundary context="MemoryBrowser">
+                  <Suspense fallback={<div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8b949e' }}>Loading...</div>}>
+                    <MemoryBrowser />
+                  </Suspense>
+                </ErrorBoundary>
+              </div>
+              <ResizableDivider direction="vertical" onResize={(d) => setPanelWidth('memoryBrowser' as any, panels.memoryBrowser.width + d)} />
+            </>
+          )}
+
+          {/* Token Dashboard Panel */}
+          {panels.tokenDashboard.open && (
+            <>
+              <div style={{ width: panels.tokenDashboard.width, flexShrink: 0, overflow: 'hidden', borderRight: '1px solid #21262d' }}>
+                <ErrorBoundary context="TokenDashboard">
+                  <Suspense fallback={<div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8b949e' }}>Loading...</div>}>
+                    <TokenDashboard />
+                  </Suspense>
+                </ErrorBoundary>
+              </div>
+              <ResizableDivider direction="vertical" onResize={(d) => setPanelWidth('tokenDashboard' as any, panels.tokenDashboard.width + d)} />
             </>
           )}
 

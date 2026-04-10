@@ -29,6 +29,7 @@ import { runAgentLoop, approveAgent } from './services/agentRunner.js'
 import { OrchestratorAgent } from './services/orchestrator.js'
 import { tokenOptimizer } from './services/tokenOptimizer.js'
 import { agentMemory } from './services/agentMemory.js'
+import { tokenTracker } from './services/tokenTracker.js'
 import {
   githubDeviceAuth,
   githubPoll,
@@ -58,6 +59,9 @@ let mainWindow: BrowserWindow | null = null
 
 // Track active streaming requests for cancellation
 const activeRequests = new Map<string, AbortController>()
+
+// Track active orchestrators for cancellation
+const activeOrchestrators = new Map<string, OrchestratorAgent>()
 
 function getAppPath(): string {
   return app.isPackaged
@@ -95,6 +99,57 @@ function createWindow(): void {
     mainWindow = null
   })
 }
+
+function createSecondaryWindow(options: { route?: string; width?: number; height?: number } = {}): BrowserWindow {
+  const preloadPath = app.isPackaged
+    ? join(process.resourcesPath, 'app.asar', 'dist', 'preload', 'index.js')
+    : join(process.cwd(), 'dist', 'preload', 'index.js')
+
+  const win = new BrowserWindow({
+    width: options.width || 1200,
+    height: options.height || 800,
+    webPreferences: {
+      preload: preloadPath,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+    },
+  })
+
+  if (process.env.VITE_DEV_SERVER_URL) {
+    win.loadURL(process.env.VITE_DEV_SERVER_URL)
+  } else {
+    const indexPath = app.isPackaged
+      ? join(process.resourcesPath, 'app.asar', 'dist', 'renderer', 'index.html')
+      : join(process.cwd(), 'dist', 'renderer', 'index.html')
+    win.loadFile(indexPath)
+  }
+
+  return win
+}
+
+// --- Window Management IPC Handlers ---
+
+ipcMain.handle('window:open-new', async (_event, options: { route?: string; width?: number; height?: number }) => {
+  const win = createSecondaryWindow(options)
+  return { windowId: win.id }
+})
+
+ipcMain.handle('window:close-current', async (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender)
+  win?.close()
+  return { ok: true }
+})
+
+ipcMain.handle('window:set-title', async (event, title: string) => {
+  const win = BrowserWindow.fromWebContents(event.sender)
+  win?.setTitle(title)
+  return { ok: true }
+})
+
+ipcMain.handle('window:list', () => {
+  return BrowserWindow.getAllWindows().map(w => ({ id: w.id, title: w.getTitle() }))
+})
 
 // --- IPC Handlers ---
 
@@ -1249,6 +1304,22 @@ ipcMain.handle('optimizer:estimate', (_event, messages: any[]) => {
 ipcMain.handle('memory:get', () => agentMemory.getAll())
 ipcMain.handle('memory:forget', (_event, key: string) => { agentMemory.forget(key); return { ok: true } })
 
+// Token Tracker (Phase 10 - TASK 3)
+ipcMain.handle('tokens:record', (_event, rec: any) => { tokenTracker.record(rec); return { ok: true } })
+ipcMain.handle('tokens:today', () => tokenTracker.getTotalToday())
+ipcMain.handle('tokens:month', () => tokenTracker.getTotalThisMonth())
+ipcMain.handle('tokens:breakdown', () => tokenTracker.getProviderBreakdown())
+ipcMain.handle('tokens:recent', (_event, limit?: number) => tokenTracker.getRecentSessions(limit))
+
+// Memory Browser (Phase 10 - TASK 4)
+ipcMain.handle('memory:list', () => agentMemory.getAll())
+ipcMain.handle('memory:delete', (_event, id: string) => { agentMemory.forget(id); return { ok: true } })
+ipcMain.handle('memory:deleteById', (_event, id: string) => { agentMemory.deleteById(id); return { ok: true } })
+ipcMain.handle('memory:update', (_event, { id, value }: { id: string; value: string }) => { agentMemory.update(id, value); return { ok: true } })
+ipcMain.handle('memory:clear', () => { agentMemory.clearAll(); return { ok: true } })
+ipcMain.handle('memory:search', (_event, query: string) => agentMemory.search(query))
+ipcMain.handle('memory:remember', (_event, { key, value, tags }: { key: string; value: string; tags?: string[] }) => { agentMemory.remember(key, value, tags || []); return { ok: true } })
+
 // ---------------------------------------------------------------------------
 // Agent (Phase 6 - TASK 3)
 // ---------------------------------------------------------------------------
@@ -1269,8 +1340,6 @@ ipcMain.handle('agent:approve', (_event, { agentId, approved }: { agentId: strin
 // ---------------------------------------------------------------------------
 // Orchestrator (Phase 7 - TASK 1)
 // ---------------------------------------------------------------------------
-
-const activeOrchestrators = new Map<string, OrchestratorAgent>()
 
 ipcMain.handle('orchestrator:plan', async (_event, { task, workspaceRoot, provider, model }: { task: string; workspaceRoot: string; provider: string; model: string }) => {
   const orchId = `orch_${Date.now()}`
@@ -1294,6 +1363,22 @@ ipcMain.handle('orchestrator:execute', async (_event, { plan, workspaceRoot, pro
     }
   })()
   return { orchestratorId: orchId }
+})
+
+ipcMain.handle('orchestrator:status', () => {
+  const entries = Array.from(activeOrchestrators.entries()).map(([id]) => ({
+    orchestratorId: id,
+    status: 'active',
+  }))
+  return { active: entries.length > 0, orchestrators: entries }
+})
+
+ipcMain.handle('orchestrator:cancel', async (_event, orchestratorId: string) => {
+  activeOrchestrators.delete(orchestratorId)
+  if (mainWindow) {
+    mainWindow.webContents.send('orchestrator:cancelled', { orchestratorId })
+  }
+  return { ok: true }
 })
 
 // ---------------------------------------------------------------------------

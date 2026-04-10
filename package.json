@@ -1,6 +1,6 @@
 {
   "name": "singularity",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Multi-provider AI coding agent desktop app",
   "type": "module",
   "main": "dist/main/index.js",

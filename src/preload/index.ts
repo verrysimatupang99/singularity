@@ -218,20 +218,41 @@ contextBridge.exposeInMainWorld('api', {
   memoryGet: () => ipcRenderer.invoke('memory:get'),
   memoryForget: (key: string) => ipcRenderer.invoke('memory:forget', key),
 
+  // Token Tracker (Phase 10 - TASK 3)
+  tokenRecord: (rec: unknown) => ipcRenderer.invoke('tokens:record', rec),
+  tokenToday: () => ipcRenderer.invoke('tokens:today'),
+  tokenMonth: () => ipcRenderer.invoke('tokens:month'),
+  tokenBreakdown: () => ipcRenderer.invoke('tokens:breakdown'),
+  tokenRecent: (limit?: number) => ipcRenderer.invoke('tokens:recent', limit),
+
+  // Memory Browser (Phase 10 - TASK 4)
+  memoryList: () => ipcRenderer.invoke('memory:list'),
+  memoryDeleteById: (id: string) => ipcRenderer.invoke('memory:deleteById', id),
+  memoryUpdate: (id: string, value: string) => ipcRenderer.invoke('memory:update', { id, value }),
+  memoryClear: () => ipcRenderer.invoke('memory:clear'),
+  memorySearch: (query: string) => ipcRenderer.invoke('memory:search', query),
+  memoryRemember: (key: string, value: string, tags?: string[]) => ipcRenderer.invoke('memory:remember', { key, value, tags }),
+
   // Orchestrator (Phase 7 - TASK 1)
   orchestratorPlan: (opts: { task: string; workspaceRoot: string; provider: string; model: string }) =>
     ipcRenderer.invoke('orchestrator:plan', opts),
   orchestratorExecute: (opts: { plan: any; workspaceRoot: string; provider: string; model: string }) =>
     ipcRenderer.invoke('orchestrator:execute', opts),
+  orchestratorStatus: () =>
+    ipcRenderer.invoke('orchestrator:status'),
+  orchestratorCancel: (orchestratorId: string) =>
+    ipcRenderer.invoke('orchestrator:cancel', orchestratorId),
   onOrchestratorEvent: (cb: (event: unknown) => void) => {
     const listener = (_event: unknown, data: unknown) => cb(data)
     ipcRenderer.on('orchestrator:event', listener)
     ipcRenderer.on('orchestrator:done', listener)
     ipcRenderer.on('orchestrator:error', listener)
+    ipcRenderer.on('orchestrator:cancelled', listener)
     return () => {
       ipcRenderer.removeListener('orchestrator:event', listener)
       ipcRenderer.removeListener('orchestrator:done', listener)
       ipcRenderer.removeListener('orchestrator:error', listener)
+      ipcRenderer.removeListener('orchestrator:cancelled', listener)
     }
   },
 
@@ -266,6 +287,13 @@ contextBridge.exposeInMainWorld('api', {
   // Onboarding (Phase 8 - TASK 2)
   storageMarkOnboardingComplete: () => ipcRenderer.invoke('storage:markOnboardingComplete'),
   storageIsFirstRun: () => ipcRenderer.invoke('storage:isFirstRun'),
+
+  // Window Management (Phase 10 - TASK 1)
+  openNewWindow: (opts: { route?: string; width?: number; height?: number }) =>
+    ipcRenderer.invoke('window:open-new', opts),
+  closeCurrentWindow: () => ipcRenderer.invoke('window:close-current'),
+  setWindowTitle: (title: string) => ipcRenderer.invoke('window:set-title', title),
+  listWindows: () => ipcRenderer.invoke('window:list'),
 })
 
 contextBridge.exposeInMainWorld('platform', process.platform)
