@@ -12,6 +12,8 @@ interface ChatViewProps {
   streamingContent: string | null
   activeToolCalls: ToolCall[]
   onExportSuccess?: (path: string) => void
+  initialMessage?: string
+  onMessageSent?: () => void
 }
 
 export default function ChatView({
@@ -24,6 +26,8 @@ export default function ChatView({
   streamingContent,
   activeToolCalls,
   onExportSuccess,
+  initialMessage,
+  onMessageSent,
 }: ChatViewProps) {
   const [input, setInput] = useState('')
   const [attachments, setAttachments] = useState<Attachment[]>([])
@@ -48,6 +52,13 @@ export default function ChatView({
         Math.min(textareaRef.current.scrollHeight, 200) + 'px'
     }
   }, [input])
+
+  // Pre-fill input from initialMessage (Ask AI from editor)
+  useEffect(() => {
+    if (initialMessage) {
+      setInput(initialMessage)
+    }
+  }, [initialMessage])
 
   const handlePickFiles = async () => {
     try {
@@ -103,6 +114,7 @@ export default function ChatView({
     onSendMessage(trimmed || '(attachment)', attachments.length > 0 ? attachments : undefined)
     setInput('')
     setAttachments([])
+    onMessageSent?.()
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
     }

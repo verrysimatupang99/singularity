@@ -150,12 +150,40 @@ contextBridge.exposeInMainWorld('api', {
   // Security (TASK 4c)
   isSecureMode: () => ipcRenderer.invoke('security:isSecureMode'),
 
+  // AI Diff Apply (TASK 5)
+  aiApplyDiff: (filePath: string, diff: string) =>
+    ipcRenderer.invoke('ai:applyDiff', { filePath, diff }),
+
   // File operations (TASK 2)
   filePick: () => ipcRenderer.invoke('file:pick'),
   fileRead: (path: string) => ipcRenderer.invoke('file:read', path),
+  fsPickFolder: () => ipcRenderer.invoke('fs:pickFolder'),
+  fsReadDir: (dirPath: string) => ipcRenderer.invoke('fs:readDir', dirPath),
+  fsReadFile: (filePath: string) => ipcRenderer.invoke('fs:readFile', filePath),
+  fsWriteFile: (filePath: string, content: string) => ipcRenderer.invoke('fs:writeFile', { filePath, content }),
 
   // Gemini credential import (TASK 5b)
   authImportGeminiCreds: () => ipcRenderer.invoke('auth:import-gemini-creds'),
+
+  // Terminal (TASK 4)
+  terminalCreate: (opts: { cwd: string; shell?: string }) =>
+    ipcRenderer.invoke('terminal:create', opts),
+  terminalWrite: (opts: { termId: string; data: string }) =>
+    ipcRenderer.invoke('terminal:write', opts),
+  terminalResize: (opts: { termId: string; cols: number; rows: number }) =>
+    ipcRenderer.invoke('terminal:resize', opts),
+  terminalKill: (termId: string) =>
+    ipcRenderer.invoke('terminal:kill', termId),
+  onTerminalData: (cb: (data: { termId: string; data: string }) => void) => {
+    const listener = (_event: unknown, d: { termId: string; data: string }) => cb(d)
+    ipcRenderer.on('terminal:data', listener)
+    return () => ipcRenderer.removeListener('terminal:data', listener)
+  },
+  onTerminalExit: (cb: (data: { termId: string; exitCode: number }) => void) => {
+    const listener = (_event: unknown, d: { termId: string; exitCode: number }) => cb(d)
+    ipcRenderer.on('terminal:exit', listener)
+    return () => ipcRenderer.removeListener('terminal:exit', listener)
+  },
 })
 
 contextBridge.exposeInMainWorld('platform', process.platform)

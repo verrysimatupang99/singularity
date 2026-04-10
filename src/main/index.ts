@@ -3,6 +3,7 @@ import { join } from 'path'
 import { writeFileSync, existsSync } from 'fs'
 import OpenAI from 'openai'
 import Anthropic from '@anthropic-ai/sdk'
+import * as pty from 'node-pty'
 import {
   listSessions,
   createSession,
@@ -857,8 +858,81 @@ ipcMain.handle('security:isSecureMode', () => {
 })
 
 // ---------------------------------------------------------------------------
+// AI Diff Apply (TASK 5)
+// ---------------------------------------------------------------------------
+
+ipcMain.handle('ai:applyDiff', async (_event, { filePath, diff }: { filePath: string; diff: string }) => {
+  // TODO: Phase 6 - parse unified diff, apply to file
+  return { success: false, error: 'Not implemented yet - planned for Phase 6' }
+})
+
+// ---------------------------------------------------------------------------
 // File Operations (TASK 2)
 // ---------------------------------------------------------------------------
+
+// fs:pickFolder — open directory picker
+ipcMain.handle('fs:pickFolder', async () => {
+  const { dialog } = await import('electron')
+  const result = await dialog.showOpenDialog({
+    properties: ['openDirectory'],
+    title: 'Open Workspace Folder',
+  })
+  return result.filePaths[0] || null
+})
+
+// fs:readDir — read directory contents (one level)
+ipcMain.handle('fs:readDir', async (_event, dirPath: string) => {
+  const { readdirSync, statSync } = await import('fs')
+  const { join } = await import('path')
+
+  const IGNORED = new Set([
+    'node_modules', '.git', '.next', 'dist', 'build',
+    '.cache', 'coverage', '.nyc_output', '__pycache__',
+    '.DS_Store', 'Thumbs.db',
+  ])
+
+  try {
+    const entries = readdirSync(dirPath)
+    return entries
+      .filter((name) => !IGNORED.has(name) && !name.startsWith('.'))
+      .map((name) => {
+        const fullPath = join(dirPath, name)
+        const stat = statSync(fullPath)
+        return {
+          name,
+          path: fullPath,
+          type: stat.isDirectory() ? 'dir' : 'file' as const,
+          size: stat.isFile() ? stat.size : 0,
+          ext: stat.isFile() ? name.split('.').at(-1) || '' : '',
+        }
+      })
+      .sort((a, b) => {
+        if (a.type !== b.type) return a.type === 'dir' ? -1 : 1
+        return a.name.localeCompare(b.name)
+      })
+  } catch {
+    return []
+  }
+})
+
+// fs:readFile — read file content (text)
+ipcMain.handle('fs:readFile', async (_event, filePath: string) => {
+  const { readFileSync, statSync } = await import('fs')
+  const stat = statSync(filePath)
+  if (stat.size > 2 * 1024 * 1024) {
+    throw new Error('File too large for editor (max 2MB)')
+  }
+  return readFileSync(filePath, 'utf8')
+})
+
+// fs:writeFile — write file content
+ipcMain.handle('fs:writeFile', async (_event, { filePath, content }: { filePath: string; content: string }) => {
+  const { writeFileSync, mkdirSync } = await import('fs')
+  const { dirname } = await import('path')
+  mkdirSync(dirname(filePath), { recursive: true })
+  writeFileSync(filePath, content, 'utf8')
+  return { success: true }
+})
 
 ipcMain.handle('file:pick', async () => {
   const { dialog } = await import('electron')
@@ -956,8 +1030,69 @@ ipcMain.handle('auth:import-gemini-creds', async () => {
 })
 
 // ---------------------------------------------------------------------------
-// OAuth (M2+M3)
+// Terminal (TASK 4)
 // ---------------------------------------------------------------------------
+
+const terminals = new Map<string, pty.IPty>()
+
+ipcMain.handle('terminal:create', (_event, { cwd, shell }: { cwd: string; shell?: string }) => {
+  const termId = `term_${Date.now()}`
+  const defaultShell = process.platform === 'win32'
+    ? process.env.COMSPEC || 'cmd.exe'
+    : process.env.SHELL || '/bin/bash'
+  const args = process.platform === 'win32' ? [] : ['--login']
+
+  const term = pty.spawn(shell || defaultShell, args, {
+    name: 'xterm-256color',
+    cwd: cwd || process.cwd(),
+    env: process.env as Record<string, string>,
+    cols: 80,
+    rows: 24,
+  })
+
+  term.onData((data) => {
+    if (mainWindow) {
+      mainWindow.webContents.send('terminal:data', { termId, data })
+    }
+  })
+
+  term.onExit(({ exitCode }) => {
+    terminals.delete(termId)
+    if (mainWindow) {
+      mainWindow.webContents.send('terminal:exit', { termId, exitCode })
+    }
+  })
+
+  terminals.set(termId, term)
+  return { termId }
+})
+
+ipcMain.handle('terminal:write', (_event, { termId, data }: { termId: string; data: string }) => {
+  const term = terminals.get(termId)
+  if (term) {
+    term.write(data)
+    return { ok: true }
+  }
+  return { ok: false, error: 'Terminal not found' }
+})
+
+ipcMain.handle('terminal:resize', (_event, { termId, cols, rows }: { termId: string; cols: number; rows: number }) => {
+  const term = terminals.get(termId)
+  if (term) {
+    term.resize(cols, rows)
+    return { ok: true }
+  }
+  return { ok: false }
+})
+
+ipcMain.handle('terminal:kill', (_event, termId: string) => {
+  const term = terminals.get(termId)
+  if (term) {
+    term.kill()
+    terminals.delete(termId)
+  }
+  return { ok: true }
+})
 
 // ---------------------------------------------------------------------------
 // App lifecycle

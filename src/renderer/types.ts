@@ -284,12 +284,27 @@ declare global {
       // Security (TASK 4c)
       isSecureMode: () => Promise<boolean>
 
+      // AI Diff Apply (TASK 5)
+      aiApplyDiff: (filePath: string, diff: string) => Promise<{ success: boolean; error?: string }>
+
       // File operations (TASK 2)
       filePick: () => Promise<string[]>
       fileRead: (path: string) => Promise<{ type: 'image' | 'text'; content: string; mimeType: string; name: string; size: number }>
+      fsPickFolder: () => Promise<string | null>
+      fsReadDir: (dirPath: string) => Promise<Array<{ name: string; path: string; type: 'dir' | 'file'; size: number; ext: string }>>
+      fsReadFile: (filePath: string) => Promise<string>
+      fsWriteFile: (filePath: string, content: string) => Promise<{ success: boolean }>
 
       // Gemini credential import (TASK 5b)
       authImportGeminiCreds: () => Promise<{ success: boolean; error?: string }>
+
+      // Terminal (TASK 4)
+      terminalCreate: (opts: { cwd: string; shell?: string }) => Promise<{ termId: string }>
+      terminalWrite: (opts: { termId: string; data: string }) => Promise<{ ok: boolean; error?: string }>
+      terminalResize: (opts: { termId: string; cols: number; rows: number }) => Promise<{ ok: boolean }>
+      terminalKill: (termId: string) => Promise<{ ok: boolean }>
+      onTerminalData: (cb: (data: { termId: string; data: string }) => void) => () => void
+      onTerminalExit: (cb: (data: { termId: string; exitCode: number }) => void) => () => void
     }
     platform: string
   }

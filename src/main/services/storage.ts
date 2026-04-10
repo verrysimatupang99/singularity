@@ -57,6 +57,7 @@ export interface AppSettings {
   defaultProvider: string
   defaultModel: string
   apiKeys: Record<string, string> // provider -> encrypted key (stored)
+  layout?: unknown // opaque, stored as-is
 }
 
 function getDefaultSettings(): AppSettings {

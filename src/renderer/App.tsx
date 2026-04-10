@@ -1,9 +1,16 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Session, ChatMessage, ProviderInfo, PROVIDERS, ToolCall, StreamChunk, Attachment } from './types'
+import { useLayout } from './context/LayoutContext'
 import Sidebar from './components/Sidebar'
 import ChatView from './components/ChatView'
 import SettingsView from './components/SettingsView'
 import ToolCallInspector from './components/ToolCallInspector'
+import ActivityBar from './components/ActivityBar'
+import FileTree from './components/FileTree'
+import ResizableDivider from './components/ResizableDivider'
+import EditorTabBar from './components/EditorTabBar'
+import CodeEditor from './components/CodeEditor'
+import TerminalPanel from './components/TerminalPanel'
 
 type View = 'chat' | 'settings'
 
@@ -41,6 +48,9 @@ export default function App() {
   // Tool call inspector state
   const [showToolInspector, setShowToolInspector] = useState(false)
   const [toolCalls, setToolCalls] = useState<ToolCall[]>([])
+
+  // Pending chat message (from editor "Ask AI")
+  const [pendingChatMessage, setPendingChatMessage] = useState<string>('')
 
   // Load initial data
   useEffect(() => {
@@ -291,6 +301,21 @@ export default function App() {
     }
   }, [activeRequestId])
 
+  // Handle "Ask AI" from editor
+  const handleEditorAskAI = useCallback((context: { file: string; content: string; selection?: string }) => {
+    setCurrentView('chat')
+    if (!panels.chat.open) togglePanel('chat')
+    if (!panels.editor.open) togglePanel('editor')
+
+    const fileName = context.file.split('/').at(-1) || context.file
+    const ext = context.file.split('.').at(-1) || ''
+    const prefix = context.selection
+      ? `Here's a selection from \`${fileName}\`:\n\n\`\`\`${ext}\n${context.selection}\n\`\`\``
+      : `Here's the content of \`${fileName}\`:\n\n\`\`\`${ext}\n${context.content}\n\`\`\``
+
+    setPendingChatMessage(prefix + '\n\n')
+  }, [togglePanel, panels])
+
   // Settings handlers
   const handleSaveSettings = useCallback(
     async (updates: Partial<AppSettings>) => {
@@ -324,8 +349,20 @@ export default function App() {
   const activeSession = sessions.find((s) => s.id === activeSessionId) || null
   const pendingToolCallCount = toolCalls.filter((t) => t.status === 'pending').length
 
+  // Layout context
+  const {
+    panels,
+    togglePanel,
+    setPanelWidth,
+    setTerminalHeight,
+    activeFile,
+    openFile,
+    workspaceRoot,
+  } = useLayout()
+
   return (
     <div
+      className="ide-root"
       style={{
         display: 'flex',
         height: '100vh',
@@ -339,43 +376,117 @@ export default function App() {
         overflow: 'hidden',
       }}
     >
-      {/* Sidebar */}
-      <Sidebar
-        sessions={sessions}
-        activeSessionId={activeSessionId}
-        onSelectSession={handleSelectSession}
-        onNewSession={handleNewSession}
-        onDeleteSession={handleDeleteSession}
-        onOpenSettings={() => setCurrentView('settings')}
-        providers={providers}
-        onToggleToolInspector={() => setShowToolInspector((prev) => !prev)}
-        showToolInspector={showToolInspector}
-        pendingToolCallCount={pendingToolCallCount}
-        sessionTokenTotals={sessionTokenTotals}
-      />
+      {/* Activity Bar */}
+      <ActivityBar />
 
-      {/* Main Content */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        {currentView === 'chat' ? (
-          <ChatView
-            session={activeSession}
-            messages={messages}
-            onSendMessage={handleSendMessage}
-            onSaveMessages={handleSaveMessages}
-            isLoading={isLoading}
-            onCancel={handleCancel}
-            streamingContent={streamingContent}
-            activeToolCalls={toolCalls}
-          />
-        ) : (
-          <SettingsView
-            settings={settings}
+      {/* Sidebar */}
+      {panels.sidebar.open && (
+        <div style={{ width: panels.sidebar.width, flexShrink: 0, overflow: 'hidden', borderRight: '1px solid #21262d' }}>
+          <Sidebar
+            sessions={sessions}
+            activeSessionId={activeSessionId}
+            onSelectSession={handleSelectSession}
+            onNewSession={handleNewSession}
+            onDeleteSession={handleDeleteSession}
+            onOpenSettings={() => setCurrentView('settings')}
             providers={providers}
-            onSaveSettings={handleSaveSettings}
-            onSetApiKey={handleSetApiKey}
-            onDeleteApiKey={handleDeleteApiKey}
-            onBack={() => setCurrentView('chat')}
+            onToggleToolInspector={() => setShowToolInspector((prev) => !prev)}
+            showToolInspector={showToolInspector}
+            pendingToolCallCount={pendingToolCallCount}
+            sessionTokenTotals={sessionTokenTotals}
           />
+        </div>
+      )}
+      {panels.sidebar.open && (
+        <ResizableDivider direction="vertical" onResize={(d) => setPanelWidth('sidebar', panels.sidebar.width + d)} />
+      )}
+
+      {/* Main area */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+          {/* File Tree */}
+          {panels.fileTree.open && workspaceRoot && (
+            <>
+              <div style={{ width: panels.fileTree.width, flexShrink: 0, overflow: 'hidden', borderRight: '1px solid #21262d' }}>
+                <FileTree rootPath={workspaceRoot} onFileOpen={openFile} activeFile={activeFile} />
+              </div>
+              <ResizableDivider direction="vertical" onResize={(d) => setPanelWidth('fileTree', panels.fileTree.width + d)} />
+            </>
+          )}
+
+          {/* Center: Editor if file open, otherwise Chat or Settings */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+            {panels.editor.open && activeFile ? (
+              <>
+                <EditorTabBar />
+                <CodeEditor filePath={activeFile} onAskAI={handleEditorAskAI} />
+              </>
+            ) : currentView === 'chat' ? (
+              <ChatView
+                session={activeSession}
+                messages={messages}
+                onSendMessage={handleSendMessage}
+                onSaveMessages={handleSaveMessages}
+                isLoading={isLoading}
+                onCancel={handleCancel}
+                streamingContent={streamingContent}
+                activeToolCalls={toolCalls}
+                initialMessage={pendingChatMessage}
+                onMessageSent={() => setPendingChatMessage('')}
+              />
+            ) : (
+              <SettingsView
+                settings={settings}
+                providers={providers}
+                onSaveSettings={handleSaveSettings}
+                onSetApiKey={handleSetApiKey}
+                onDeleteApiKey={handleDeleteApiKey}
+                onBack={() => setCurrentView('chat')}
+              />
+            )}
+          </div>
+
+          {/* Chat panel (when editor is not active) */}
+          {panels.chat.open && !panels.editor.open && (
+            <>
+              <ResizableDivider direction="vertical" onResize={(d) => setPanelWidth('chat', panels.chat.width + d)} />
+              <div style={{ width: panels.chat.width, flexShrink: 0 }}>
+                {currentView === 'chat' ? (
+                  <ChatView
+                    session={activeSession}
+                    messages={messages}
+                    onSendMessage={handleSendMessage}
+                    onSaveMessages={handleSaveMessages}
+                    isLoading={isLoading}
+                    onCancel={handleCancel}
+                    streamingContent={streamingContent}
+                    activeToolCalls={toolCalls}
+                    initialMessage={pendingChatMessage}
+                    onMessageSent={() => setPendingChatMessage('')}
+                  />
+                ) : (
+                  <SettingsView
+                    settings={settings}
+                    providers={providers}
+                    onSaveSettings={handleSaveSettings}
+                    onSetApiKey={handleSetApiKey}
+                    onDeleteApiKey={handleDeleteApiKey}
+                    onBack={() => setCurrentView('chat')}
+                  />
+                )}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Terminal Panel */}
+        {panels.terminal.open && (
+          <>
+            <ResizableDivider direction="horizontal" onResize={(d) => setTerminalHeight(panels.terminal.height - d)} />
+            <div style={{ height: panels.terminal.height, flexShrink: 0 }}>
+              <TerminalPanel workspaceRoot={workspaceRoot} />
+            </div>
+          </>
         )}
       </div>
 
