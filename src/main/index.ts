@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'path'
 import OpenAI from 'openai'
 import Anthropic from '@anthropic-ai/sdk'
@@ -14,6 +14,7 @@ import {
   setApiKey,
   deleteApiKey,
   getApiKey,
+  isSecureMode,
 } from './services/storage.js'
 import { CliSessionManager, CliError } from './services/cliSessionManager.js'
 import { McpManager } from './services/mcpManager.js'
@@ -25,6 +26,8 @@ import {
   qwenPoll,
   googleOAuth,
   importGeminiCliCredentials,
+  initiateGitHubDeviceFlow,
+  pollGitHubDeviceToken,
 } from './services/oauthService.js'
 
 // Fix GPU issues on Linux
@@ -693,6 +696,135 @@ ipcMain.handle('providers:list', async () => {
   } catch (err) {
     console.error('providers:list error:', err)
     return []
+  }
+})
+
+// ---------------------------------------------------------------------------
+// Device Flow Auth (TASK 2d)
+// ---------------------------------------------------------------------------
+
+ipcMain.handle('auth:connect', async (_event, { providerId }: { providerId: string }) => {
+  try {
+    if (providerId === 'github-copilot') {
+      const deviceInfo = await initiateGitHubDeviceFlow()
+      shell.openExternal(deviceInfo.verification_uri)
+      return {
+        providerId,
+        user_code: deviceInfo.user_code,
+        verification_uri: deviceInfo.verification_uri,
+      }
+    }
+    // TODO: qwen device flow when endpoints available
+    return { error: 'Provider not supported' }
+  } catch (err) {
+    console.error('auth:connect error:', err)
+    return { error: err instanceof Error ? err.message : String(err) }
+  }
+})
+
+ipcMain.handle('auth:connect-poll', async (_event, {
+  providerId,
+  device_code,
+  interval,
+}: {
+  providerId: string
+  device_code: string
+  interval: number
+}) => {
+  try {
+    if (providerId === 'github-copilot') {
+      const controller = new AbortController()
+      const result = await pollGitHubDeviceToken(device_code, interval, controller.signal)
+      if ('access_token' in result) {
+        setApiKey('github-copilot', result.access_token)
+        if (mainWindow) {
+          mainWindow.webContents.send('auth:status:update', { providerId: 'github-copilot', connected: true })
+        }
+      }
+      return result
+    }
+    return { error: 'Provider not supported' }
+  } catch (err) {
+    console.error('auth:connect-poll error:', err)
+    return { error: err instanceof Error ? err.message : String(err) }
+  }
+})
+
+ipcMain.handle('auth:disconnect', (_event, { providerId }: { providerId: string }) => {
+  try {
+    deleteApiKey(providerId)
+    if (mainWindow) {
+      mainWindow.webContents.send('auth:status:update', { providerId, connected: false })
+    }
+  } catch (err) {
+    console.error('auth:disconnect error:', err)
+    throw err
+  }
+})
+
+// ---------------------------------------------------------------------------
+// Security (TASK 4c)
+// ---------------------------------------------------------------------------
+
+ipcMain.handle('security:isSecureMode', () => {
+  return isSecureMode()
+})
+
+// ---------------------------------------------------------------------------
+// Gemini Credential Import (TASK 5a)
+// ---------------------------------------------------------------------------
+
+ipcMain.handle('auth:import-gemini-creds', async () => {
+  try {
+    const { readFileSync, existsSync } = await import('fs')
+    const { join } = await import('path')
+    const { homedir } = await import('os')
+
+    const credsPath = join(homedir(), '.gemini', 'oauth_creds.json')
+    if (!existsSync(credsPath)) {
+      return { success: false, error: 'Gemini CLI credentials not found at ~/.gemini/oauth_creds.json' }
+    }
+
+    const raw = readFileSync(credsPath, 'utf8')
+    const creds = JSON.parse(raw) as Record<string, unknown>
+
+    // Validate format
+    if (!creds.access_token || !creds.refresh_token) {
+      return { success: false, error: 'Invalid credential format: missing access_token or refresh_token' }
+    }
+
+    // Check expiry
+    if (creds.expiry_date && (creds.expiry_date as number) < Date.now()) {
+      // Try to refresh
+      try {
+        const refreshResponse = await fetch('https://oauth2.googleapis.com/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            client_id: creds.client_id,
+            client_secret: creds.client_secret,
+            refresh_token: creds.refresh_token,
+            grant_type: 'refresh_token',
+          }),
+        })
+        if (!refreshResponse.ok) {
+          return { success: false, error: 'Token expired and refresh failed' }
+        }
+        const newTokens = await refreshResponse.json() as Record<string, unknown>
+        // Update creds object
+        Object.assign(creds, newTokens)
+        creds.expiry_date = Date.now() + ((newTokens.expires_in as number) || 3600) * 1000
+      } catch {
+        return { success: false, error: 'Token expired and refresh failed' }
+      }
+    }
+
+    // Store via safeStorage
+    setApiKey('gemini', creds.access_token as string)
+
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : String(err) }
   }
 })
 

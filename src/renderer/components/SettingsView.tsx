@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { AppSettings, ProviderInfo, McpServerInfo, McpServerConfig, McpTool, GithubDeviceAuthResult } from '../types'
 
 interface SettingsViewProps {
@@ -10,13 +10,22 @@ interface SettingsViewProps {
   onBack: () => void
 }
 
-const PROVIDER_CONFIG = [
-  { id: 'gemini', name: 'Google Gemini', color: '#4285f4', keyLabel: 'API Key' },
-  { id: 'copilot', name: 'GitHub Copilot', color: '#24292e', keyLabel: 'OAuth Token' },
-  { id: 'qwen', name: 'Qwen', color: '#615ef0', keyLabel: 'API Key' },
-  { id: 'anthropic', name: 'Anthropic', color: '#d46f2f', keyLabel: 'API Key' },
-  { id: 'openai', name: 'OpenAI', color: '#10a37f', keyLabel: 'API Key' },
-  { id: 'openrouter', name: 'OpenRouter', color: '#3b82f6', keyLabel: 'API Key' },
+type ConnectionMethod = 'api-key' | 'oauth' | 'cli-detect' | 'import'
+
+const PROVIDER_CONFIG: Array<{
+  id: string
+  name: string
+  color: string
+  keyLabel: string
+  connectionMethod: ConnectionMethod
+  icon: string
+}> = [
+  { id: 'anthropic', name: 'Anthropic', color: '#d46f2f', keyLabel: 'API Key', connectionMethod: 'api-key', icon: '🤖' },
+  { id: 'openai', name: 'OpenAI', color: '#10a37f', keyLabel: 'API Key', connectionMethod: 'api-key', icon: '🔵' },
+  { id: 'openrouter', name: 'OpenRouter', color: '#3b82f6', keyLabel: 'API Key', connectionMethod: 'api-key', icon: '🌐' },
+  { id: 'copilot', name: 'GitHub Copilot', color: '#24292e', keyLabel: 'OAuth Token', connectionMethod: 'oauth', icon: '🐙' },
+  { id: 'gemini', name: 'Google Gemini', color: '#4285f4', keyLabel: 'API Key', connectionMethod: 'import', icon: '💎' },
+  { id: 'qwen', name: 'Qwen', color: '#615ef0', keyLabel: 'API Key', connectionMethod: 'api-key', icon: '🔮' },
 ]
 
 export default function SettingsView({
@@ -30,6 +39,22 @@ export default function SettingsView({
   const [apiKeyInputs, setApiKeyInputs] = useState<Record<string, string>>({})
   const [savingKey, setSavingKey] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<string | null>(null)
+
+  // Security state (TASK 4c)
+  const [isSecureMode, setIsSecureMode] = useState<boolean>(true)
+
+  // Gemini import state (TASK 5c)
+  const [geminiCredsImporting, setGeminiCredsImporting] = useState(false)
+  const [geminiCredsImportResult, setGeminiCredsImportResult] = useState<'idle' | 'success' | 'error'>('idle')
+  const [geminiCredsImportError, setGeminiCredsImportError] = useState('')
+
+  // GitHub device flow state (TASK 4b)
+  const [showGithubDeviceFlow, setShowGithubDeviceFlow] = useState(false)
+  const [githubDeviceUserCode, setGithubDeviceUserCode] = useState('')
+  const [githubDeviceVerifyUri, setGithubDeviceVerifyUri] = useState('')
+  const [githubDeviceCode, setGithubDeviceCode] = useState('')
+  const [githubDevicePolling, setGithubDevicePolling] = useState(false)
+  const githubPollRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // MCP state
   const [mcpServers, setMcpServers] = useState<McpServerInfo[]>([])
@@ -59,9 +84,19 @@ export default function SettingsView({
   const defaultProvider = settings?.defaultProvider || 'openai'
   const defaultModel = settings?.defaultModel || 'gpt-4o'
 
-  // Load MCP servers on mount
+  // Load MCP servers and check secure mode on mount
   useEffect(() => {
     loadMcpServers()
+    checkSecureMode()
+  }, [])
+
+  const checkSecureMode = useCallback(async () => {
+    try {
+      const secure = await window.api.isSecureMode()
+      setIsSecureMode(secure)
+    } catch {
+      setIsSecureMode(false)
+    }
   }, [])
 
   const loadMcpServers = useCallback(async () => {
@@ -288,6 +323,105 @@ export default function SettingsView({
     }
   }, [])
 
+  // -----------------------------------------------------------------------
+  // GitHub device flow handlers (TASK 4b)
+  // -----------------------------------------------------------------------
+
+  const stopGithubPolling = useCallback(() => {
+    if (githubPollRef.current) {
+      clearTimeout(githubPollRef.current)
+      githubPollRef.current = null
+    }
+    setGithubDevicePolling(false)
+  }, [])
+
+  const handleGithubConnect = useCallback(async () => {
+    setShowGithubDeviceFlow(true)
+    setGithubDeviceUserCode('')
+    setGithubDeviceVerifyUri('')
+    setGithubDeviceCode('')
+    setGithubDevicePolling(false)
+    try {
+      const result = await window.api.authConnect('github-copilot')
+      if (result.error) {
+        setFeedback(`GitHub auth failed: ${result.error}`)
+        setShowGithubDeviceFlow(false)
+        setTimeout(() => setFeedback(null), 3000)
+        return
+      }
+      setGithubDeviceUserCode(result.user_code)
+      setGithubDeviceVerifyUri(result.verification_uri)
+      setGithubDeviceCode(result.user_code) // Use user_code as device_code reference
+      // Start polling
+      startGithubDevicePolling(result.user_code, 5)
+    } catch (err) {
+      setFeedback(`GitHub auth failed: ${err instanceof Error ? err.message : String(err)}`)
+      setShowGithubDeviceFlow(false)
+      setTimeout(() => setFeedback(null), 3000)
+    }
+  }, [])
+
+  const startGithubDevicePolling = useCallback((deviceCode: string, intervalSec: number) => {
+    setGithubDevicePolling(true)
+    const poll = async () => {
+      try {
+        const result = await window.api.authConnectPoll('github-copilot', deviceCode, intervalSec)
+        if (result.access_token) {
+          setGithubDevicePolling(false)
+          setShowGithubDeviceFlow(false)
+          setFeedback('GitHub Copilot authenticated successfully!')
+          setTimeout(() => setFeedback(null), 3000)
+          return
+        }
+        if (result.error && !result.pending) {
+          setGithubDevicePolling(false)
+          setFeedback(`GitHub auth failed: ${result.error}`)
+          setShowGithubDeviceFlow(false)
+          setTimeout(() => setFeedback(null), 3000)
+          return
+        }
+        // Still pending — poll again
+        githubPollRef.current = setTimeout(poll, intervalSec * 1000)
+      } catch (err) {
+        setGithubDevicePolling(false)
+        setFeedback(`GitHub poll failed: ${err instanceof Error ? err.message : String(err)}`)
+        setShowGithubDeviceFlow(false)
+        setTimeout(() => setFeedback(null), 3000)
+      }
+    }
+    githubPollRef.current = setTimeout(poll, intervalSec * 1000)
+  }, [])
+
+  const handleGithubDeviceFlowCancel = useCallback(() => {
+    stopGithubPolling()
+    setShowGithubDeviceFlow(false)
+  }, [stopGithubPolling])
+
+  // -----------------------------------------------------------------------
+  // Gemini credential import handler (TASK 5c)
+  // -----------------------------------------------------------------------
+
+  const handleGeminiCredsImport = useCallback(async () => {
+    setGeminiCredsImporting(true)
+    setGeminiCredsImportResult('idle')
+    setGeminiCredsImportError('')
+    try {
+      const result = await window.api.authImportGeminiCreds()
+      if (result.success) {
+        setGeminiCredsImportResult('success')
+        setFeedback('Gemini CLI credentials imported successfully!')
+      } else {
+        setGeminiCredsImportResult('error')
+        setGeminiCredsImportError(result.error || 'Unknown error')
+      }
+    } catch (err) {
+      setGeminiCredsImportResult('error')
+      setGeminiCredsImportError(err instanceof Error ? err.message : String(err))
+    }
+    setGeminiCredsImporting(false)
+    setTimeout(() => setFeedback(null), 3000)
+  }, [])
+
   const handleSaveKey = async (providerId: string) => {
     const key = apiKeyInputs[providerId]
     if (!key || key.length < 4) return
@@ -360,6 +494,34 @@ export default function SettingsView({
         <h1 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 700 }}>Settings</h1>
       </div>
 
+      {/* Keychain Warning Banner (TASK 4c) */}
+      {!isSecureMode && (
+        <div
+          style={{
+            padding: '12px 16px',
+            marginBottom: '20px',
+            borderRadius: '8px',
+            backgroundColor: 'rgba(210, 153, 34, 0.15)',
+            border: '1px solid rgba(210, 153, 34, 0.3)',
+            color: '#d29922',
+            fontSize: '0.85rem',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '8px',
+          }}
+        >
+          <span style={{ fontSize: '1rem' }}>\u26a0\ufe0f</span>
+          <div>
+            <div style={{ fontWeight: 600, marginBottom: '2px' }}>
+              Credentials use fallback encryption (system keychain unavailable).
+            </div>
+            <div style={{ opacity: 0.8 }}>
+              Install GNOME Keyring or KWallet for stronger security.
+            </div>
+          </div>
+        </div>
+      )}
+
       {feedback && (
         <div
           style={{
@@ -378,114 +540,136 @@ export default function SettingsView({
         </div>
       )}
 
-      {/* Provider Connections */}
+      {/* Provider Connections (TASK 4a) */}
       <Section title="Provider Connections">
         {PROVIDER_CONFIG.map((config) => {
           const status = providerStatus[config.id] || 'disconnected'
           const hasKey = status === 'connected'
 
           return (
-            <div
+            <ProviderCard
               key={config.id}
-              style={{
-                backgroundColor: '#161b22',
-                border: '1px solid #30363d',
-                borderRadius: '10px',
-                padding: '16px 20px',
-                marginBottom: '12px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '16px',
-              }}
-            >
-              <div
-                style={{
-                  width: 10,
-                  height: 10,
-                  borderRadius: '50%',
-                  backgroundColor: hasKey ? '#3fb950' : '#484f58',
-                  boxShadow: hasKey ? '0 0 6px #3fb950' : 'none',
-                  flexShrink: 0,
-                }}
-              />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 600, fontSize: '0.95rem', color: config.color }}>
-                  {config.name}
-                </div>
-                <div style={{ fontSize: '0.8rem', color: '#484f58', marginTop: '2px' }}>
-                  {hasKey ? 'Connected' : 'Not configured'}
-                </div>
-              </div>
-              {hasKey ? (
-                <button
-                  onClick={() => handleDeleteKey(config.id)}
-                  style={{
-                    backgroundColor: 'rgba(248, 81, 73, 0.15)',
-                    border: '1px solid rgba(248, 81, 73, 0.3)',
-                    color: '#f85149',
-                    padding: '6px 12px',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    fontSize: '0.8rem',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  Remove Key
-                </button>
-              ) : (
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <input
-                    type="password"
-                    placeholder={`Enter ${config.keyLabel}`}
-                    value={apiKeyInputs[config.id] || ''}
-                    onChange={(e) =>
-                      setApiKeyInputs((prev) => ({
-                        ...prev,
-                        [config.id]: e.target.value,
-                      }))
-                    }
-                    style={{
-                      backgroundColor: '#0d1117',
-                      border: '1px solid #30363d',
-                      borderRadius: '6px',
-                      color: '#c9d1d9',
-                      padding: '6px 10px',
-                      fontSize: '0.85rem',
-                      width: '200px',
-                      outline: 'none',
-                    }}
-                  />
-                  <button
-                    onClick={() => handleSaveKey(config.id)}
-                    disabled={!apiKeyInputs[config.id] || savingKey === config.id}
-                    style={{
-                      backgroundColor:
-                        apiKeyInputs[config.id] && savingKey !== config.id
-                          ? '#238636'
-                          : '#21262d',
-                      border: '1px solid #30363d',
-                      color:
-                        apiKeyInputs[config.id] && savingKey !== config.id
-                          ? '#fff'
-                          : '#484f58',
-                      padding: '6px 14px',
-                      borderRadius: '6px',
-                      cursor:
-                        apiKeyInputs[config.id] && savingKey !== config.id
-                          ? 'pointer'
-                          : 'not-allowed',
-                      fontSize: '0.8rem',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {savingKey === config.id ? 'Saving...' : 'Save'}
-                  </button>
-                </div>
-              )}
-            </div>
+              config={config}
+              hasKey={hasKey}
+              status={status}
+              apiKeyInput={apiKeyInputs[config.id] || ''}
+              savingKey={savingKey === config.id}
+              geminiCredsImporting={config.id === 'gemini' ? geminiCredsImporting : false}
+              geminiCredsImportResult={config.id === 'gemini' ? geminiCredsImportResult : 'idle'}
+              geminiCredsImportError={config.id === 'gemini' ? geminiCredsImportError : ''}
+              onInputChange={(value) =>
+                setApiKeyInputs((prev) => ({ ...prev, [config.id]: value }))
+              }
+              onSaveKey={() => handleSaveKey(config.id)}
+              onDeleteKey={() => handleDeleteKey(config.id)}
+              onGithubConnect={handleGithubConnect}
+              onGeminiImport={handleGeminiCredsImport}
+            />
           )
         })}
       </Section>
+
+      {/* GitHub Device Flow Modal (TASK 4b) */}
+      {showGithubDeviceFlow && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 2000,
+          }}
+          onClick={handleGithubDeviceFlowCancel}
+        >
+          <div
+            style={{
+              backgroundColor: '#161b22',
+              border: '1px solid #30363d',
+              borderRadius: '12px',
+              padding: '24px',
+              minWidth: 400,
+              maxWidth: 480,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 style={{ margin: '0 0 20px', fontSize: 18, color: '#f0f6fc' }}>
+              Connect GitHub Copilot
+            </h2>
+
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: '0.85rem', color: '#8b949e', marginBottom: 4 }}>
+                Go to:
+              </div>
+              <div
+                style={{
+                  fontSize: '0.95rem',
+                  color: '#58a6ff',
+                  fontFamily: 'monospace',
+                  backgroundColor: '#0d1117',
+                  padding: '8px 12px',
+                  borderRadius: 6,
+                  border: '1px solid #30363d',
+                }}
+              >
+                github.com/login/device
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: '0.85rem', color: '#8b949e', marginBottom: 4 }}>
+                Enter code:
+              </div>
+              <div
+                style={{
+                  fontSize: '1.75rem',
+                  fontWeight: 700,
+                  fontFamily: 'monospace',
+                  color: '#e94560',
+                  letterSpacing: '0.15em',
+                  backgroundColor: '#0d1117',
+                  padding: '12px 16px',
+                  borderRadius: 6,
+                  border: '1px solid #30363d',
+                  textAlign: 'center',
+                }}
+              >
+                {githubDeviceUserCode}
+              </div>
+            </div>
+
+            <div style={{ fontSize: '0.8rem', color: '#484f58', marginBottom: 16, textAlign: 'center' }}>
+              A browser window should have opened automatically.
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 20 }}>
+              {githubDevicePolling && (
+                <span style={{ fontSize: '0.85rem', color: '#d29922' }}>
+                  Waiting for authorization... \u27f3
+                </span>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+              <button
+                onClick={handleGithubDeviceFlowCancel}
+                style={{
+                  padding: '8px 20px',
+                  backgroundColor: 'transparent',
+                  color: '#8b949e',
+                  border: '1px solid #30363d',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  fontSize: 14,
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* OAuth Connections */}
       <Section title="OAuth Connections">
@@ -1311,6 +1495,184 @@ function OAuthCard({ providerName, color, status, error, userCode, verifyUri, on
           <div style={{ fontSize: '0.75rem', color: '#484f58', marginTop: '4px' }}>
             A browser window should have opened. If not, visit the URL above and enter the code manually.
           </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Provider Card sub-component (TASK 4a)
+// ---------------------------------------------------------------------------
+
+interface ProviderCardProps {
+  config: { id: string; name: string; color: string; keyLabel: string; connectionMethod: ConnectionMethod; icon: string }
+  hasKey: boolean
+  status: string
+  apiKeyInput: string
+  savingKey: boolean
+  geminiCredsImporting: boolean
+  geminiCredsImportResult: 'idle' | 'success' | 'error'
+  geminiCredsImportError: string
+  onInputChange: (value: string) => void
+  onSaveKey: () => void
+  onDeleteKey: () => void
+  onGithubConnect: () => void
+  onGeminiImport: () => void
+}
+
+function ProviderCard({
+  config,
+  hasKey,
+  status,
+  apiKeyInput,
+  savingKey,
+  geminiCredsImporting,
+  geminiCredsImportResult,
+  geminiCredsImportError,
+  onInputChange,
+  onSaveKey,
+  onDeleteKey,
+  onGithubConnect,
+  onGeminiImport,
+}: ProviderCardProps) {
+  const isConnected = hasKey || status === 'connected'
+
+  return (
+    <div
+      style={{
+        backgroundColor: '#161b22',
+        border: '1px solid #30363d',
+        borderRadius: '10px',
+        padding: '16px 20px',
+        marginBottom: '12px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '16px',
+      }}
+    >
+      {/* Status indicator */}
+      <div
+        style={{
+          width: 10,
+          height: 10,
+          borderRadius: '50%',
+          backgroundColor: isConnected ? '#3fb950' : '#484f58',
+          boxShadow: isConnected ? '0 0 6px #3fb950' : 'none',
+          flexShrink: 0,
+        }}
+      />
+
+      {/* Provider info */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 600, fontSize: '0.95rem', color: config.color }}>
+          {config.name}
+        </div>
+        <div style={{ fontSize: '0.8rem', color: '#484f58', marginTop: '2px' }}>
+          {isConnected ? 'Connected' : 'Not configured'}
+        </div>
+      </div>
+
+      {/* Connection method UI */}
+      {isConnected ? (
+        <button
+          onClick={onDeleteKey}
+          style={{
+            backgroundColor: 'rgba(248, 81, 73, 0.15)',
+            border: '1px solid rgba(248, 81, 73, 0.3)',
+            color: '#f85149',
+            padding: '6px 12px',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            fontSize: '0.8rem',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          Remove
+        </button>
+      ) : (
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {config.connectionMethod === 'api-key' && (
+            <>
+              <input
+                type="password"
+                placeholder={`Enter ${config.keyLabel}`}
+                value={apiKeyInput}
+                onChange={(e) => onInputChange(e.target.value)}
+                style={{
+                  backgroundColor: '#0d1117',
+                  border: '1px solid #30363d',
+                  borderRadius: '6px',
+                  color: '#c9d1d9',
+                  padding: '6px 10px',
+                  fontSize: '0.85rem',
+                  width: '200px',
+                  outline: 'none',
+                }}
+              />
+              <button
+                onClick={onSaveKey}
+                disabled={!apiKeyInput || savingKey}
+                style={{
+                  backgroundColor: apiKeyInput && !savingKey ? '#238636' : '#21262d',
+                  border: '1px solid #30363d',
+                  color: apiKeyInput && !savingKey ? '#fff' : '#484f58',
+                  padding: '6px 14px',
+                  borderRadius: '6px',
+                  cursor: apiKeyInput && !savingKey ? 'pointer' : 'not-allowed',
+                  fontSize: '0.8rem',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {savingKey ? 'Saving...' : 'Save'}
+              </button>
+            </>
+          )}
+
+          {config.connectionMethod === 'oauth' && config.id === 'copilot' && (
+            <button
+              onClick={onGithubConnect}
+              style={{
+                backgroundColor: '#238636',
+                border: '1px solid #2ea043',
+                color: '#fff',
+                padding: '8px 16px',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '0.8rem',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Connect GitHub
+            </button>
+          )}
+
+          {config.connectionMethod === 'import' && config.id === 'gemini' && (
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <button
+                onClick={onGeminiImport}
+                disabled={geminiCredsImporting}
+                style={{
+                  backgroundColor: geminiCredsImporting ? '#21262d' : '#238636',
+                  border: '1px solid #2ea043',
+                  color: geminiCredsImporting ? '#484f58' : '#fff',
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  cursor: geminiCredsImporting ? 'not-allowed' : 'pointer',
+                  fontSize: '0.8rem',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {geminiCredsImporting ? 'Importing...' : 'Import from ~/.gemini/'}
+              </button>
+              {geminiCredsImportResult === 'success' && (
+                <span style={{ fontSize: '0.8rem', color: '#3fb950' }}>\u2705 Imported!</span>
+              )}
+              {geminiCredsImportResult === 'error' && (
+                <span style={{ fontSize: '0.75rem', color: '#f85149' }}>{geminiCredsImportError}</span>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

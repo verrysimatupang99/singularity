@@ -257,6 +257,17 @@ declare global {
       authQwenPoll: () => Promise<GithubDeviceAuthResult>
       authGoogleOAuth: (start: boolean, port?: number) => Promise<GoogleOAuthResult>
       authImportGemini: () => Promise<GeminiImportResult>
+
+      // Auth device flow (TASK 4d)
+      authConnect: (providerId: string) => Promise<{ user_code: string; verification_uri: string; error?: string }>
+      authConnectPoll: (providerId: string, device_code: string, interval: number) => Promise<{ access_token?: string; error?: string; pending?: boolean }>
+      authDisconnect: (providerId: string) => Promise<void>
+
+      // Security (TASK 4c)
+      isSecureMode: () => Promise<boolean>
+
+      // Gemini credential import (TASK 5b)
+      authImportGeminiCreds: () => Promise<{ success: boolean; error?: string }>
     }
     platform: string
   }

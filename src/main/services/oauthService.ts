@@ -96,8 +96,95 @@ let googleOAuthResolver: ((result: GoogleOAuthResult) => void) | null = null
 let googleOAuthState: { codeVerifier: string; state: string; redirectUri: string } | null = null
 
 // ---------------------------------------------------------------------------
-// GitHub Copilot Device Flow
+// GitHub Copilot Device Flow (stateful wrappers)
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Low-level GitHub device flow functions (composable, stateless)
+// ---------------------------------------------------------------------------
+
+export async function initiateGitHubDeviceFlow(): Promise<{
+  device_code: string
+  user_code: string
+  verification_uri: string
+  expires_in: number
+  interval: number
+}> {
+  const response = await fetch(GITHUB_DEVICE_CODE_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      client_id: GITHUB_CLIENT_ID,
+      scope: GITHUB_SCOPE,
+    }),
+  })
+
+  if (!response.ok) {
+    throw new Error(`GitHub device code request failed: ${response.status} ${response.statusText}`)
+  }
+
+  const data = (await response.json()) as Record<string, unknown>
+
+  if (data.error) {
+    throw new Error(String(data.error_description || data.error))
+  }
+
+  return {
+    device_code: String(data.device_code),
+    user_code: String(data.user_code),
+    verification_uri: String(data.verification_uri),
+    expires_in: Number(data.expires_in) || 900,
+    interval: Number(data.interval) || 5,
+  }
+}
+
+export async function pollGitHubDeviceToken(
+  device_code: string,
+  interval: number,
+  signal?: AbortSignal,
+): Promise<{ access_token: string } | { error: string; pending: boolean }> {
+  try {
+    const response = await fetch(GITHUB_TOKEN_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        client_id: GITHUB_CLIENT_ID,
+        device_code,
+        grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
+      }),
+      signal,
+    })
+
+    if (!response.ok) {
+      const data = (await response.json()) as Record<string, unknown>
+      const error = String(data.error || 'unknown_error')
+
+      if (error === 'authorization_pending') {
+        return { error, pending: true }
+      }
+      if (error === 'slow_down') {
+        return { error: 'slow_down', pending: true }
+      }
+      if (error === 'expired_token') {
+        return { error: 'expired', pending: false }
+      }
+      return { error, pending: false }
+    }
+
+    const data = (await response.json()) as Record<string, unknown>
+    const accessToken = String(data.access_token)
+    return { access_token: accessToken }
+  } catch (err) {
+    if (signal?.aborted || (err instanceof DOMException && err.name === 'AbortError')) {
+      throw new Error('Device flow polling was cancelled')
+    }
+    throw err
+  }
+}
 
 export async function githubDeviceAuth(): Promise<GithubDeviceAuthResult> {
   try {

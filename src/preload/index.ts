@@ -135,6 +135,20 @@ contextBridge.exposeInMainWorld('api', {
   authGoogleOAuth: (start: boolean, port?: number) =>
     ipcRenderer.invoke('auth:google-oauth', start, port),
   authImportGemini: () => ipcRenderer.invoke('auth:import-gemini'),
+
+  // Auth device flow (TASK 4d)
+  authConnect: (providerId: string) =>
+    ipcRenderer.invoke('auth:connect', { providerId }),
+  authConnectPoll: (providerId: string, device_code: string, interval: number) =>
+    ipcRenderer.invoke('auth:connect-poll', { providerId, device_code, interval }),
+  authDisconnect: (providerId: string) =>
+    ipcRenderer.invoke('auth:disconnect', { providerId }),
+
+  // Security (TASK 4c)
+  isSecureMode: () => ipcRenderer.invoke('security:isSecureMode'),
+
+  // Gemini credential import (TASK 5b)
+  authImportGeminiCreds: () => ipcRenderer.invoke('auth:import-gemini-creds'),
 })
 
 contextBridge.exposeInMainWorld('platform', process.platform)
