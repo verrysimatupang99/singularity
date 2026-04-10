@@ -17,6 +17,7 @@ import {
 } from './services/storage.js'
 import { CliSessionManager, CliError } from './services/cliSessionManager.js'
 import { McpManager } from './services/mcpManager.js'
+import { initProviders, registry } from './providers/index.js'
 import {
   githubDeviceAuth,
   githubPoll,
@@ -678,10 +679,35 @@ ipcMain.handle('auth:import-gemini', async () => {
 })
 
 // ---------------------------------------------------------------------------
+// Provider Registry (TASK 4)
+// ---------------------------------------------------------------------------
+
+ipcMain.handle('providers:list', async () => {
+  try {
+    const providers = await registry.getAvailable()
+    return await Promise.all(providers.map(async (p) => ({
+      id: p.id,
+      name: p.name,
+      models: await p.getModels(),
+    })))
+  } catch (err) {
+    console.error('providers:list error:', err)
+    return []
+  }
+})
+
+// ---------------------------------------------------------------------------
+// OAuth (M2+M3)
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
 // App lifecycle
 // ---------------------------------------------------------------------------
 
-app.whenReady().then(createWindow)
+app.whenReady().then(async () => {
+  initProviders({})
+  createWindow()
+})
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

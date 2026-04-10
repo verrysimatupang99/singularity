@@ -26,6 +26,11 @@ export interface ProviderInfo {
 export interface ModelInfo {
   id: string
   name: string
+  contextWindow?: number
+  maxOutputTokens?: number
+  supportsTools?: boolean
+  supportsVision?: boolean
+  supportsReasoning?: boolean
 }
 
 export interface AppSettings {
@@ -221,6 +226,7 @@ declare global {
       authStatus: () => Promise<Record<string, { status: string; models: string[] }>>
       authSetApiKey: (provider: string, key: string) => Promise<boolean>
       authDeleteApiKey: (provider: string) => Promise<void>
+      providersList: () => Promise<Array<{ id: string; name: string; models: ModelInfo[] }>>
       onChatChunk: (callback: (data: { requestId: string; content: string; done: boolean }) => void) => () => void
       chatCancel: (requestId: string) => Promise<void>
 

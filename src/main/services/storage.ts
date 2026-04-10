@@ -1,6 +1,8 @@
 import { safeStorage, app } from 'electron'
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, unlinkSync } from 'fs'
 import { join } from 'path'
+import crypto from 'crypto'
+import os from 'os'
 
 // Resolve config directory: use app.getPath('userData') for cross-platform compatibility
 // This resolves to:
@@ -66,25 +68,97 @@ function getDefaultSettings(): AppSettings {
   }
 }
 
+// ---------------------------------------------------------------------------
+// AES-256-GCM fallback when safeStorage is unavailable (headless Linux, etc.)
+// ---------------------------------------------------------------------------
+
+let _machineKey: Buffer | null = null
+
+function getMachineKey(): Buffer {
+  if (_machineKey) return _machineKey
+
+  // Try to read /etc/machine-id (Linux), fallback to hostname + username
+  let machineId = ''
+  try {
+    if (process.platform === 'linux') {
+      machineId = readFileSync('/etc/machine-id', 'utf8').trim()
+    }
+  } catch {
+    // Fallback
+  }
+
+  const input = os.hostname() + os.userInfo().username + machineId
+  _machineKey = crypto.createHash('sha256').update(input).digest()
+  return _machineKey
+}
+
+function aesEncrypt(text: string, key: Buffer): string {
+  const iv = crypto.randomBytes(16)
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv)
+  const encrypted = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()])
+  const authTag = cipher.getAuthTag()
+  return Buffer.concat([iv, authTag, encrypted]).toString('hex')
+}
+
+function aesDecrypt(hex: string, key: Buffer): string {
+  const data = Buffer.from(hex, 'hex')
+  const iv = data.slice(0, 16)
+  const authTag = data.slice(16, 32)
+  const encrypted = data.slice(32)
+  const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv)
+  decipher.setAuthTag(authTag)
+  return decipher.update(encrypted) + decipher.final('utf8')
+}
+
+// Track whether we're using safeStorage or AES fallback
+let _useSafeStorage: boolean | null = null
+
+function isUsingSafeStorage(): boolean {
+  if (_useSafeStorage === null) {
+    _useSafeStorage = safeStorage.isEncryptionAvailable()
+  }
+  return _useSafeStorage
+}
+
+// Exposed for tests and UI
+export function isSecureMode(): boolean {
+  return isUsingSafeStorage()
+}
+
 function encryptValue(value: string): string {
   if (safeStorage.isEncryptionAvailable()) {
+    _useSafeStorage = true
     const encrypted = safeStorage.encryptString(value)
-    return encrypted.toString('base64')
+    return 'sf:' + encrypted.toString('hex')
   }
-  // Fallback: base64 with a warning
-  console.warn('safeStorage encryption not available, using base64 fallback')
-  return Buffer.from(value, 'utf8').toString('base64')
+  // AES-256-GCM fallback
+  _useSafeStorage = false
+  console.warn('safeStorage encryption not available, using AES-256-GCM fallback')
+  const key = getMachineKey()
+  return 'aes:' + aesEncrypt(value, key)
 }
 
 function decryptValue(encrypted: string): string {
   try {
-    const buf = Buffer.from(encrypted, 'base64')
-    if (safeStorage.isEncryptionAvailable()) {
-      return safeStorage.decryptString(buf)
+    if (encrypted.startsWith('sf:')) {
+      _useSafeStorage = true
+      const buf = Buffer.from(encrypted.slice(3), 'hex')
+      if (safeStorage.isEncryptionAvailable()) {
+        return safeStorage.decryptString(buf)
+      }
+      throw new Error('safeStorage not available but data was encrypted with it')
     }
-    // Fallback: base64 decode
-    console.warn('safeStorage decryption not available, using base64 fallback')
-    return buf.toString('utf8')
+
+    if (encrypted.startsWith('aes:')) {
+      _useSafeStorage = false
+      const key = getMachineKey()
+      return aesDecrypt(encrypted.slice(4), key)
+    }
+
+    // Legacy base64 format (from old versions)
+    console.warn('Decrypting legacy base64 credential')
+    _useSafeStorage = false
+    return Buffer.from(encrypted, 'base64').toString('utf8')
   } catch {
     throw new Error('Failed to decrypt stored credential')
   }

@@ -35,6 +35,9 @@ contextBridge.exposeInMainWorld('api', {
   authDeleteApiKey: (provider: string) =>
     ipcRenderer.invoke('auth:deleteKey', provider),
 
+  // Providers
+  providersList: () => ipcRenderer.invoke('providers:list'),
+
   // Streaming
   onChatChunk: (
     callback: (data: {

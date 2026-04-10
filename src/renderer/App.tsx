@@ -23,6 +23,11 @@ export default function App() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
 
+  // New session dialog
+  const [showNewSessionDialog, setShowNewSessionDialog] = useState(false)
+  const [selectedProvider, setSelectedProvider] = useState('')
+  const [selectedModel, setSelectedModel] = useState('')
+
   // Chat state
   const [isLoading, setIsLoading] = useState(false)
   const [streamingContent, setStreamingContent] = useState<string | null>(null)
@@ -69,14 +74,23 @@ export default function App() {
 
   const loadProviderStatus = useCallback(async () => {
     try {
-      const status = await window.api.authStatus()
-      const providerInfos: ProviderInfo[] = PROVIDERS.map((p) => ({
-        id: p.id,
-        name: p.name,
-        icon: p.id,
-        status: status[p.id]?.status === 'connected' ? 'connected' : 'disconnected',
-        models: (status[p.id]?.models || p.models).map((m: string) => ({ id: m, name: m })),
-      }))
+      const [status, registryProviders] = await Promise.all([
+        window.api.authStatus(),
+        window.api.providersList(),
+      ])
+
+      const providerInfos: ProviderInfo[] = PROVIDERS.map((p) => {
+        const registryProvider = registryProviders.find((r) => r.id === p.id)
+        return {
+          id: p.id,
+          name: registryProvider?.name ?? p.name,
+          icon: p.id,
+          status: status[p.id]?.status === 'connected' ? 'connected' : 'disconnected',
+          models: registryProvider?.models?.length
+            ? registryProvider.models.map((m) => ({ id: m.id, name: m.name }))
+            : (status[p.id]?.models || p.models).map((m: string) => ({ id: m, name: m })),
+        }
+      })
       setProviders(providerInfos)
     } catch (err) {
       console.error('Failed to load provider status:', err)
@@ -150,25 +164,31 @@ export default function App() {
     }
   }, [])
 
-  // Create new session
-  const handleNewSession = useCallback(async () => {
+  // Create new session — show provider/model selection dialog
+  const handleNewSession = useCallback(() => {
     const defaultProvider = settings?.defaultProvider || 'openai'
-    const defaultModel = settings?.defaultModel || 'gpt-4o'
-
     const providerInfo = providers.find((p) => p.id === defaultProvider)
-    const model = providerInfo?.models[0]?.id || defaultModel
+    const defaultModel = providerInfo?.models[0]?.id || ''
+    setSelectedProvider(defaultProvider)
+    setSelectedModel(defaultModel)
+    setShowNewSessionDialog(true)
+  }, [settings, providers])
+
+  const handleConfirmNewSession = useCallback(async () => {
+    if (!selectedProvider || !selectedModel) return
+    setShowNewSessionDialog(false)
 
     try {
       const session = await window.api.sessionCreate({
-        provider: defaultProvider,
-        model,
+        provider: selectedProvider,
+        model: selectedModel,
       })
       setSessions((prev) => [session, ...prev])
       handleSelectSession(session.id)
     } catch (err) {
       console.error('Failed to create session:', err)
     }
-  }, [settings, providers, handleSelectSession])
+  }, [selectedProvider, selectedModel, handleSelectSession])
 
   // Delete session
   const handleDeleteSession = useCallback(
@@ -346,6 +366,123 @@ export default function App() {
           toolCalls={toolCalls}
           onClose={() => setShowToolInspector(false)}
         />
+      )}
+
+      {/* New Session Dialog */}
+      {showNewSessionDialog && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+          onClick={() => setShowNewSessionDialog(false)}
+        >
+          <div
+            style={{
+              backgroundColor: '#161b22',
+              border: '1px solid #30363d',
+              borderRadius: 12,
+              padding: 24,
+              minWidth: 400,
+              maxWidth: 500,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 style={{ margin: '0 0 20px', fontSize: 18, color: '#f0f6fc' }}>New Session</h2>
+
+            <label style={{ display: 'block', marginBottom: 6, color: '#8b949e', fontSize: 13 }}>
+              Provider
+            </label>
+            <select
+              value={selectedProvider}
+              onChange={(e) => {
+                setSelectedProvider(e.target.value)
+                const p = providers.find((pr) => pr.id === e.target.value)
+                if (p?.models[0]) setSelectedModel(p.models[0].id)
+              }}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                backgroundColor: '#0d1117',
+                color: '#c9d1d9',
+                border: '1px solid #30363d',
+                borderRadius: 6,
+                marginBottom: 16,
+                fontSize: 14,
+              }}
+            >
+              {providers.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+
+            <label style={{ display: 'block', marginBottom: 6, color: '#8b949e', fontSize: 13 }}>
+              Model
+            </label>
+            <select
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                backgroundColor: '#0d1117',
+                color: '#c9d1d9',
+                border: '1px solid #30363d',
+                borderRadius: 6,
+                marginBottom: 24,
+                fontSize: 14,
+              }}
+            >
+              {providers
+                .find((p) => p.id === selectedProvider)
+                ?.models.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+            </select>
+
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setShowNewSessionDialog(false)}
+                style={{
+                  padding: '8px 20px',
+                  backgroundColor: 'transparent',
+                  color: '#8b949e',
+                  border: '1px solid #30363d',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  fontSize: 14,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmNewSession}
+                disabled={!selectedProvider || !selectedModel}
+                style={{
+                  padding: '8px 20px',
+                  backgroundColor: '#238636',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 6,
+                  cursor: selectedProvider && selectedModel ? 'pointer' : 'not-allowed',
+                  fontSize: 14,
+                  opacity: selectedProvider && selectedModel ? 1 : 0.5,
+                }}
+              >
+                Create
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
