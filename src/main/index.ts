@@ -17,7 +17,10 @@ import {
   deleteApiKey,
   getApiKey,
   isSecureMode,
+  isFirstRun,
+  markOnboardingComplete,
 } from './services/storage.js'
+import { crashReporter } from './services/crashReporter.js'
 import { CliSessionManager, CliError } from './services/cliSessionManager.js'
 import { McpManager } from './services/mcpManager.js'
 import { initProviders, registry } from './providers/index.js'
@@ -38,6 +41,7 @@ import {
 } from './services/oauthService.js'
 import { pluginLoader } from './services/pluginLoader.js'
 import { computerUseController } from './services/computerUse.js'
+import { setupAutoUpdater } from './services/updater.js'
 
 // Fix GPU issues on Linux
 app.commandLine.appendSwitch('no-sandbox')
@@ -1279,6 +1283,23 @@ ipcMain.handle('cu:action', async (_event, action: any) => {
 })
 
 // ---------------------------------------------------------------------------
+// Crash Reporter (Phase 8 - TASK 3)
+// ---------------------------------------------------------------------------
+
+ipcMain.handle('crash:report', (_event, report: any) => crashReporter.save(report))
+ipcMain.handle('crash:list', () => crashReporter.list())
+
+// ---------------------------------------------------------------------------
+// Onboarding (Phase 8 - TASK 2)
+// ---------------------------------------------------------------------------
+
+ipcMain.handle('storage:markOnboardingComplete', () => {
+  markOnboardingComplete()
+  return { ok: true }
+})
+ipcMain.handle('storage:isFirstRun', () => isFirstRun())
+
+// ---------------------------------------------------------------------------
 // App lifecycle
 // ---------------------------------------------------------------------------
 
@@ -1287,6 +1308,9 @@ app.whenReady().then(async () => {
   // Load plugins on startup
   try { await pluginLoader.loadFromDir(pluginLoader['pluginDir']) } catch {}
   createWindow()
+  if (mainWindow) {
+    setupAutoUpdater(mainWindow)
+  }
 })
 
 app.on('window-all-closed', () => {

@@ -9,6 +9,7 @@ export interface PanelState {
   terminal: { open: boolean; height: number }
   agent: { open: boolean; width: number }
   orchestrator: { open: boolean; width: number }
+  computerUse: { open: boolean; width: number }
 }
 
 const DEFAULT_PANELS: PanelState = {
@@ -20,6 +21,7 @@ const DEFAULT_PANELS: PanelState = {
   terminal: { open: false, height: 240 },
   agent: { open: false, width: 420 },
   orchestrator: { open: false, width: 420 },
+  computerUse: { open: false, width: 420 },
 }
 
 interface LayoutState {
@@ -109,7 +111,7 @@ function layoutReducer(state: LayoutState, action: LayoutAction): LayoutState {
 export interface LayoutContextType {
   panels: PanelState
   togglePanel: (panel: keyof PanelState) => void
-  setPanelWidth: (panel: 'sidebar' | 'fileTree' | 'search' | 'chat' | 'agent' | 'orchestrator', width: number) => void
+  setPanelWidth: (panel: 'sidebar' | 'fileTree' | 'search' | 'chat' | 'agent' | 'orchestrator' | 'computerUse', width: number) => void
   setTerminalHeight: (height: number) => void
   activeFile: string | null
   setActiveFile: (path: string | null) => void
@@ -139,7 +141,7 @@ export function LayoutProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'TOGGLE_PANEL', panel })
   }, [])
 
-  const setPanelWidth = useCallback((panel: 'sidebar' | 'fileTree' | 'search' | 'chat' | 'agent' | 'orchestrator', width: number) => {
+  const setPanelWidth = useCallback((panel: 'sidebar' | 'fileTree' | 'search' | 'chat' | 'agent' | 'orchestrator' | 'computerUse', width: number) => {
     dispatch({ type: 'SET_PANEL_WIDTH', panel, width: Math.max(150, Math.min(800, width)) })
   }, [])
 

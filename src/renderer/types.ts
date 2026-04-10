@@ -335,6 +335,21 @@ declare global {
       // Computer Use (Phase 7 - TASK 4)
       cuScreenshot: () => Promise<{ success: boolean; screenshot?: string; error?: string }>
       cuAction: (action: { type: string; x?: number; y?: number; text?: string; key?: string }) => Promise<{ success: boolean; screenshot?: string; error?: string }>
+
+      // Crash Reporter (Phase 8 - TASK 3)
+      crashReport: (report: { message: string; stack?: string; componentStack?: string; context?: string }) => Promise<string>
+      crashList: () => Promise<Array<{ id: string; timestamp: number; message: string; stack?: string; componentStack?: string; context?: string; appVersion: string; platform: string }>>
+
+      // Auto-Updater (Phase 8 - TASK 1)
+      updaterInstallNow: () => Promise<void>
+      updaterCheckNow: () => Promise<void>
+      onUpdaterUpdateAvailable: (cb: () => void) => () => void
+      onUpdaterUpdateDownloaded: (cb: () => void) => () => void
+      onUpdaterDownloadProgress: (cb: (d: { percent: number }) => void) => () => void
+
+      // Onboarding (Phase 8 - TASK 2)
+      storageMarkOnboardingComplete: () => Promise<{ ok: boolean }>
+      storageIsFirstRun: () => Promise<boolean>
     }
     platform: string
   }

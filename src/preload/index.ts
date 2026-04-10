@@ -237,6 +237,27 @@ contextBridge.exposeInMainWorld('api', {
   // Computer Use (Phase 7 - TASK 4)
   cuScreenshot: () => ipcRenderer.invoke('cu:screenshot'),
   cuAction: (action: unknown) => ipcRenderer.invoke('cu:action', action),
+
+  // Crash Reporter (Phase 8 - TASK 3)
+  crashReport: (report: unknown) => ipcRenderer.invoke('crash:report', report),
+  crashList: () => ipcRenderer.invoke('crash:list'),
+
+  // Auto-Updater (Phase 8 - TASK 1)
+  updaterInstallNow: () => ipcRenderer.invoke('updater:install-now'),
+  updaterCheckNow: () => ipcRenderer.invoke('updater:check-now'),
+  onUpdaterUpdateAvailable: (cb: () => void) => {
+    const l = () => cb(); ipcRenderer.on('updater:update-available', l); return () => ipcRenderer.removeListener('updater:update-available', l)
+  },
+  onUpdaterUpdateDownloaded: (cb: () => void) => {
+    const l = () => cb(); ipcRenderer.on('updater:update-downloaded', l); return () => ipcRenderer.removeListener('updater:update-downloaded', l)
+  },
+  onUpdaterDownloadProgress: (cb: (d: unknown) => void) => {
+    const l = (_e: unknown, d: unknown) => cb(d); ipcRenderer.on('updater:download-progress', l); return () => ipcRenderer.removeListener('updater:download-progress', l)
+  },
+
+  // Onboarding (Phase 8 - TASK 2)
+  storageMarkOnboardingComplete: () => ipcRenderer.invoke('storage:markOnboardingComplete'),
+  storageIsFirstRun: () => ipcRenderer.invoke('storage:isFirstRun'),
 })
 
 contextBridge.exposeInMainWorld('platform', process.platform)

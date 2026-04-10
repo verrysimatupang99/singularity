@@ -323,3 +323,14 @@ export function getApiKey(provider: string): string | null {
     return null
   }
 }
+
+// --- Onboarding ---
+
+export function isFirstRun(): boolean {
+  const settings = getSettings()
+  return !(settings as any).onboardingComplete
+}
+
+export function markOnboardingComplete(): void {
+  setSettings({ onboardingComplete: true } as any)
+}

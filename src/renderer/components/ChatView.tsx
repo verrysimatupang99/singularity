@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { ChatMessage, Session, ToolCall, Attachment } from '../types'
 import MessageBubble from './MessageBubble'
 import ContextMeter from './ContextMeter'
@@ -40,6 +41,26 @@ export default function ChatView({
   const [toast, setToast] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const parentRef = useRef<HTMLDivElement>(null)
+
+  // Build display messages (merge streaming content if active)
+  const displayMessages = [...messages]
+  if (streamingContent && isLoading) {
+    const streamingMsg: ChatMessage = {
+      id: 'streaming',
+      role: 'assistant',
+      content: streamingContent,
+      timestamp: Date.now(),
+    }
+    displayMessages.push(streamingMsg)
+  }
+
+  const virtualizer = useVirtualizer({
+    count: displayMessages.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 100,
+    overscan: 5,
+  })
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -160,18 +181,6 @@ export default function ChatView({
         </div>
       </div>
     )
-  }
-
-  // Build display messages (merge streaming content if active)
-  const displayMessages = [...messages]
-  if (streamingContent && isLoading) {
-    const streamingMsg: ChatMessage = {
-      id: 'streaming',
-      role: 'assistant',
-      content: streamingContent,
-      timestamp: Date.now(),
-    }
-    displayMessages.push(streamingMsg)
   }
 
   // Calculate context usage
@@ -343,70 +352,79 @@ export default function ChatView({
 
       {/* Messages */}
       <div
+        ref={parentRef}
         style={{
           flex: 1,
           overflowY: 'auto',
-          padding: '20px',
         }}
       >
-        {displayMessages.map((msg, idx) => {
-          // Show inline tool call indicators before assistant messages when tools are active
-          const activeCalls = activeToolCalls.filter((t) => t.status === 'executing' || t.status === 'pending')
-          const showToolIndicator = msg.role === 'assistant' && activeCalls.length > 0 && idx > 0 && displayMessages[idx - 1]?.role === 'user'
+        <div style={{ height: `${virtualizer.getTotalSize()}px`, position: 'relative' }}>
+          {virtualizer.getVirtualItems().map(vItem => {
+            const msg = displayMessages[vItem.index]
+            if (!msg) return null
 
-          return (
-            <div key={msg.id}>
-              {showToolIndicator && (
-                <div
-                  style={{
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    gap: '6px',
-                    marginBottom: '8px',
-                    padding: '8px 12px',
-                    backgroundColor: '#161b22',
-                    border: '1px solid #30363d',
-                    borderRadius: '8px',
-                  }}
-                >
-                  <span style={{ fontSize: '0.75rem', color: '#8b949e', fontWeight: 600 }}>
-                    Tools:
-                  </span>
-                  {activeCalls.map((tc) => (
-                    <span
-                      key={tc.id}
-                      style={{
-                        fontSize: '0.75rem',
-                        fontFamily: 'monospace',
-                        padding: '2px 8px',
-                        borderRadius: '4px',
-                        backgroundColor: tc.status === 'executing'
-                          ? 'rgba(88, 166, 255, 0.15)'
-                          : 'rgba(210, 153, 34, 0.15)',
-                        color: tc.status === 'executing' ? '#58a6ff' : '#d29922',
-                        border: `1px solid ${tc.status === 'executing' ? 'rgba(88, 166, 255, 0.3)' : 'rgba(210, 153, 34, 0.3)'}`,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                      }}
-                    >
-                      <span style={{ fontSize: '0.7rem' }}>
-                        {tc.status === 'executing' ? '\uD83D\uDD04' : '\u23F3'}
-                      </span>
-                      {tc.name}
+            const activeCalls = activeToolCalls.filter((t) => t.status === 'executing' || t.status === 'pending')
+            const showToolIndicator = msg.role === 'assistant' && activeCalls.length > 0 && vItem.index > 0 && displayMessages[vItem.index - 1]?.role === 'user'
+
+            return (
+              <div
+                key={msg.id}
+                ref={virtualizer.measureElement}
+                data-index={vItem.index}
+                style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${vItem.start}px)` }}
+              >
+                {showToolIndicator && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: '6px',
+                      marginBottom: '8px',
+                      padding: '8px 12px',
+                      backgroundColor: '#161b22',
+                      border: '1px solid #30363d',
+                      borderRadius: '8px',
+                    }}
+                  >
+                    <span style={{ fontSize: '0.75rem', color: '#8b949e', fontWeight: 600 }}>
+                      Tools:
                     </span>
-                  ))}
-                </div>
-              )}
-              <MessageBubble
-                content={msg.content}
-                role={msg.role}
-                timestamp={msg.timestamp}
-                tokenUsage={msg.tokenUsage}
-              />
-            </div>
-          )
-        })}
+                    {activeCalls.map((tc) => (
+                      <span
+                        key={tc.id}
+                        style={{
+                          fontSize: '0.75rem',
+                          fontFamily: 'monospace',
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          backgroundColor: tc.status === 'executing'
+                            ? 'rgba(88, 166, 255, 0.15)'
+                            : 'rgba(210, 153, 34, 0.15)',
+                          color: tc.status === 'executing' ? '#58a6ff' : '#d29922',
+                          border: `1px solid ${tc.status === 'executing' ? 'rgba(88, 166, 255, 0.3)' : 'rgba(210, 153, 34, 0.3)'}`,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        <span style={{ fontSize: '0.7rem' }}>
+                          {tc.status === 'executing' ? '\uD83D\uDD04' : '\u23F3'}
+                        </span>
+                        {tc.name}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <MessageBubble
+                  content={msg.content}
+                  role={msg.role}
+                  timestamp={msg.timestamp}
+                  tokenUsage={msg.tokenUsage}
+                />
+              </div>
+            )
+          })}
+        </div>
         <div ref={messagesEndRef} />
       </div>
 

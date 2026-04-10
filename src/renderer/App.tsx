@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, lazy, Suspense } from 'react'
 import { Session, ChatMessage, ProviderInfo, PROVIDERS, ToolCall, StreamChunk, Attachment } from './types'
 import { useLayout } from './context/LayoutContext'
 import Sidebar from './components/Sidebar'
@@ -7,13 +7,18 @@ import SettingsView from './components/SettingsView'
 import ToolCallInspector from './components/ToolCallInspector'
 import ActivityBar from './components/ActivityBar'
 import FileTree from './components/FileTree'
-import SearchPanel from './components/SearchPanel'
 import ResizableDivider from './components/ResizableDivider'
 import EditorTabBar from './components/EditorTabBar'
 import CodeEditor from './components/CodeEditor'
 import TerminalPanel from './components/TerminalPanel'
-import AgentView from './components/AgentView'
-import OrchestratorView from './components/OrchestratorView'
+import { ErrorBoundary } from './components/ErrorBoundary'
+import OnboardingWizard from './components/OnboardingWizard'
+import UpdateNotification from './components/UpdateNotification'
+
+const OrchestratorView = lazy(() => import('./components/OrchestratorView'))
+const AgentView = lazy(() => import('./components/AgentView'))
+const SearchPanel = lazy(() => import('./components/SearchPanel'))
+const ComputerUseView = lazy(() => import('./components/ComputerUseView'))
 
 type View = 'chat' | 'settings'
 
@@ -55,12 +60,16 @@ export default function App() {
   // Pending chat message (from editor "Ask AI")
   const [pendingChatMessage, setPendingChatMessage] = useState<string>('')
 
+  // Onboarding
+  const [showOnboarding, setShowOnboarding] = useState(false)
+
   // Load initial data
   useEffect(() => {
     loadSessions()
     loadSettings()
     setupChatChunkListener()
     setupCliStreamListener()
+    checkOnboarding()
   }, [])
 
   // Refresh provider status when settings change
@@ -121,6 +130,15 @@ export default function App() {
       setProviders(providerInfos)
     } catch (err) {
       console.error('Failed to load provider status:', err)
+    }
+  }, [])
+
+  const checkOnboarding = useCallback(async () => {
+    try {
+      const isFirst = await window.api.storageIsFirstRun()
+      if (isFirst) setShowOnboarding(true)
+    } catch {
+      // Ignore errors
     }
   }, [])
 
@@ -388,6 +406,14 @@ export default function App() {
         overflow: 'hidden',
       }}
     >
+      {/* Onboarding Wizard */}
+      {showOnboarding && (
+        <OnboardingWizard
+          onComplete={() => setShowOnboarding(false)}
+          onSkip={() => setShowOnboarding(false)}
+        />
+      )}
+
       {/* Activity Bar */}
       <ActivityBar />
 
@@ -420,7 +446,9 @@ export default function App() {
           {panels.fileTree.open && workspaceRoot && (
             <>
               <div style={{ width: panels.fileTree.width, flexShrink: 0, overflow: 'hidden', borderRight: '1px solid #21262d' }}>
-                <FileTree rootPath={workspaceRoot} onFileOpen={openFile} activeFile={activeFile} />
+                <ErrorBoundary context="FileTree">
+                  <FileTree rootPath={workspaceRoot} onFileOpen={openFile} activeFile={activeFile} />
+                </ErrorBoundary>
               </div>
               <ResizableDivider direction="vertical" onResize={(d) => setPanelWidth('fileTree', panels.fileTree.width + d)} />
             </>
@@ -430,7 +458,11 @@ export default function App() {
           {panels.search.open && (
             <>
               <div style={{ width: panels.search.width, flexShrink: 0, overflow: 'hidden', borderRight: '1px solid #21262d' }}>
-                <SearchPanel />
+                <ErrorBoundary context="SearchPanel">
+                  <Suspense fallback={<div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8b949e' }}>Loading...</div>}>
+                    <SearchPanel />
+                  </Suspense>
+                </ErrorBoundary>
               </div>
               <ResizableDivider direction="vertical" onResize={(d) => setPanelWidth('search', panels.search.width + d)} />
             </>
@@ -440,7 +472,11 @@ export default function App() {
           {panels.agent.open && (
             <>
               <div style={{ width: panels.agent.width, flexShrink: 0, overflow: 'hidden', borderRight: '1px solid #21262d' }}>
-                <AgentView workspaceRoot={workspaceRoot} />
+                <ErrorBoundary context="AgentView">
+                  <Suspense fallback={<div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8b949e' }}>Loading...</div>}>
+                    <AgentView workspaceRoot={workspaceRoot} />
+                  </Suspense>
+                </ErrorBoundary>
               </div>
               <ResizableDivider direction="vertical" onResize={(d) => setPanelWidth('agent', panels.agent.width + d)} />
             </>
@@ -450,9 +486,27 @@ export default function App() {
           {panels.orchestrator.open && (
             <>
               <div style={{ width: panels.orchestrator.width, flexShrink: 0, overflow: 'hidden', borderRight: '1px solid #21262d' }}>
-                <OrchestratorView />
+                <ErrorBoundary context="OrchestratorView">
+                  <Suspense fallback={<div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8b949e' }}>Loading...</div>}>
+                    <OrchestratorView />
+                  </Suspense>
+                </ErrorBoundary>
               </div>
               <ResizableDivider direction="vertical" onResize={(d) => setPanelWidth('orchestrator', panels.orchestrator.width + d)} />
+            </>
+          )}
+
+          {/* Computer Use Panel */}
+          {panels.computerUse.open && (
+            <>
+              <div style={{ width: panels.computerUse.width, flexShrink: 0, overflow: 'hidden', borderRight: '1px solid #21262d' }}>
+                <ErrorBoundary context="ComputerUseView">
+                  <Suspense fallback={<div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8b949e' }}>Loading...</div>}>
+                    <ComputerUseView />
+                  </Suspense>
+                </ErrorBoundary>
+              </div>
+              <ResizableDivider direction="vertical" onResize={(d) => setPanelWidth('computerUse', panels.computerUse.width + d)} />
             </>
           )}
 
@@ -461,36 +515,42 @@ export default function App() {
             {panels.editor.open && activeFile ? (
               <>
                 <EditorTabBar />
-                <CodeEditor
-                  filePath={activeFile}
-                  provider={activeSession?.provider || settings?.defaultProvider || 'openai'}
-                  model={activeSession?.model || settings?.defaultModel || 'gpt-4'}
-                  onAskAI={handleEditorAskAI}
-                />
+                <ErrorBoundary context="CodeEditor">
+                  <CodeEditor
+                    filePath={activeFile}
+                    provider={activeSession?.provider || settings?.defaultProvider || 'openai'}
+                    model={activeSession?.model || settings?.defaultModel || 'gpt-4'}
+                    onAskAI={handleEditorAskAI}
+                  />
+                </ErrorBoundary>
               </>
             ) : currentView === 'chat' ? (
-              <ChatView
-                session={activeSession}
-                messages={messages}
-                onSendMessage={handleSendMessage}
-                onSaveMessages={handleSaveMessages}
-                isLoading={isLoading}
-                onCancel={handleCancel}
-                streamingContent={streamingContent}
-                activeToolCalls={toolCalls}
-                initialMessage={pendingChatMessage}
-                onMessageSent={() => setPendingChatMessage('')}
-                contextWindow={contextWindow}
-              />
+              <ErrorBoundary context="ChatView">
+                <ChatView
+                  session={activeSession}
+                  messages={messages}
+                  onSendMessage={handleSendMessage}
+                  onSaveMessages={handleSaveMessages}
+                  isLoading={isLoading}
+                  onCancel={handleCancel}
+                  streamingContent={streamingContent}
+                  activeToolCalls={toolCalls}
+                  initialMessage={pendingChatMessage}
+                  onMessageSent={() => setPendingChatMessage('')}
+                  contextWindow={contextWindow}
+                />
+              </ErrorBoundary>
             ) : (
-              <SettingsView
-                settings={settings}
-                providers={providers}
-                onSaveSettings={handleSaveSettings}
-                onSetApiKey={handleSetApiKey}
-                onDeleteApiKey={handleDeleteApiKey}
-                onBack={() => setCurrentView('chat')}
-              />
+              <ErrorBoundary context="SettingsView">
+                <SettingsView
+                  settings={settings}
+                  providers={providers}
+                  onSaveSettings={handleSaveSettings}
+                  onSetApiKey={handleSetApiKey}
+                  onDeleteApiKey={handleDeleteApiKey}
+                  onBack={() => setCurrentView('chat')}
+                />
+              </ErrorBoundary>
             )}
           </div>
 
@@ -500,28 +560,32 @@ export default function App() {
               <ResizableDivider direction="vertical" onResize={(d) => setPanelWidth('chat', panels.chat.width + d)} />
               <div style={{ width: panels.chat.width, flexShrink: 0 }}>
                 {currentView === 'chat' ? (
-                  <ChatView
-                    session={activeSession}
-                    messages={messages}
-                    onSendMessage={handleSendMessage}
-                    onSaveMessages={handleSaveMessages}
-                    isLoading={isLoading}
-                    onCancel={handleCancel}
-                    streamingContent={streamingContent}
-                    activeToolCalls={toolCalls}
-                    initialMessage={pendingChatMessage}
-                    onMessageSent={() => setPendingChatMessage('')}
-                    contextWindow={contextWindow}
-                  />
+                  <ErrorBoundary context="ChatView">
+                    <ChatView
+                      session={activeSession}
+                      messages={messages}
+                      onSendMessage={handleSendMessage}
+                      onSaveMessages={handleSaveMessages}
+                      isLoading={isLoading}
+                      onCancel={handleCancel}
+                      streamingContent={streamingContent}
+                      activeToolCalls={toolCalls}
+                      initialMessage={pendingChatMessage}
+                      onMessageSent={() => setPendingChatMessage('')}
+                      contextWindow={contextWindow}
+                    />
+                  </ErrorBoundary>
                 ) : (
-                  <SettingsView
-                    settings={settings}
-                    providers={providers}
-                    onSaveSettings={handleSaveSettings}
-                    onSetApiKey={handleSetApiKey}
-                    onDeleteApiKey={handleDeleteApiKey}
-                    onBack={() => setCurrentView('chat')}
-                  />
+                  <ErrorBoundary context="SettingsView">
+                    <SettingsView
+                      settings={settings}
+                      providers={providers}
+                      onSaveSettings={handleSaveSettings}
+                      onSetApiKey={handleSetApiKey}
+                      onDeleteApiKey={handleDeleteApiKey}
+                      onBack={() => setCurrentView('chat')}
+                    />
+                  </ErrorBoundary>
                 )}
               </div>
             </>
@@ -533,7 +597,9 @@ export default function App() {
           <>
             <ResizableDivider direction="horizontal" onResize={(d) => setTerminalHeight(panels.terminal.height - d)} />
             <div style={{ height: panels.terminal.height, flexShrink: 0 }}>
-              <TerminalPanel workspaceRoot={workspaceRoot} />
+              <ErrorBoundary context="TerminalPanel">
+                <TerminalPanel workspaceRoot={workspaceRoot} />
+              </ErrorBoundary>
             </div>
           </>
         )}
@@ -663,6 +729,9 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Auto-Updater Notification */}
+      <UpdateNotification />
     </div>
   )
 }
