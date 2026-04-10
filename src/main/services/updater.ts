@@ -1,6 +1,8 @@
-import { autoUpdater } from 'electron-updater'
-import { BrowserWindow } from 'electron'
-import { ipcMain } from 'electron'
+// electron-updater is a CommonJS module — must use default import in ESM context
+import electronUpdater from 'electron-updater'
+const { autoUpdater } = electronUpdater
+
+import { BrowserWindow, ipcMain } from 'electron'
 
 export function setupAutoUpdater(mainWindow: BrowserWindow): void {
   autoUpdater.autoDownload = true
