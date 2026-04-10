@@ -73,7 +73,12 @@
       .cursor-blink { animation: cursor-blink 1s step-end infinite; }
     </style>
   </head>
-  <body>
+  <body style="background-color: #0d0e0f; color: #e3e2e3; margin: 0; font-family: Inter, system-ui, sans-serif;">
+    <!-- Loading fallback (outside root so React replaces it cleanly) -->
+    <div id="loading-fallback" style="position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px; background: #0d0e0f; z-index: 9999;">
+      <div style="font-size: 48px; opacity: 0.3;">∞</div>
+      <div style="color: #bdc9ca; font-size: 16px;">Loading Singularity...</div>
+    </div>
     <div id="root"></div>
     <script type="module" src="./main.tsx"></script>
   </body>

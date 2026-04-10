@@ -173,6 +173,7 @@ export default function App() {
 
   // Select session
   const handleSelectSession = useCallback(async (id: string) => {
+    if (!id) return
     setActiveSessionId(id)
     try {
       const { session, messages: msgs } = await window.api.sessionLoad(id)
