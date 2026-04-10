@@ -61,10 +61,12 @@ export class CrashReporterService {
     process.on('uncaughtException', (err) => {
       this.save({ message: err.message, stack: err.stack, context: 'main-process' })
       log.error('Uncaught exception:', err.message)
+      process.exit(1)
     })
     process.on('unhandledRejection', (reason) => {
       const msg = reason instanceof Error ? reason.message : String(reason)
       this.save({ message: `Unhandled rejection: ${msg}`, context: 'main-process' })
+      process.exit(1)
     })
   }
 }

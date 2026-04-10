@@ -17,6 +17,10 @@ export class ErrorBoundary extends Component<Props, State> {
       componentStack: errorInfo?.componentStack,
       context: this.props.context,
     }).catch(() => {})
+    // Also log via dedicated renderer error channel
+    try {
+      window.api.logRendererError?.({ message: error.message, stack: error.stack })
+    } catch {}
   }
 
   render() {

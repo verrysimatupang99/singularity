@@ -319,6 +319,7 @@ export function getApiKey(provider: string): string | null {
   try {
     return decryptValue(encrypted)
   } catch {
+    console.warn(`Failed to decrypt API key for provider "${provider}". Key may be corrupted or machine key changed.`)
     return null
   }
 }

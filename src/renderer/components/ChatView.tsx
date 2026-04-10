@@ -44,12 +44,13 @@ export default function ChatView({
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const parentRef = useRef<HTMLDivElement>(null)
+  const mcpIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Build display messages (merge streaming content if active)
   const displayMessages = [...messages]
   if (streamingContent && isLoading) {
     const streamingMsg: ChatMessage = {
-      id: 'streaming',
+      id: `streaming_${Date.now()}`,
       role: 'assistant',
       content: streamingContent,
       timestamp: Date.now(),
@@ -92,8 +93,8 @@ export default function ChatView({
       }
     }
     loadMcp()
-    const interval = setInterval(loadMcp, 10000)
-    return () => clearInterval(interval)
+    mcpIntervalRef.current = setInterval(loadMcp, 10000)
+    return () => { if (mcpIntervalRef.current) clearInterval(mcpIntervalRef.current) }
   }, [])
 
   // Pre-fill input from initialMessage (Ask AI from editor)
@@ -170,12 +171,13 @@ export default function ChatView({
     }
   }
 
-  // Save messages when they change
+  // Save messages when they change (debounced)
   useEffect(() => {
     if (session && messages.length > 0) {
-      onSaveMessages(messages)
+      const timer = setTimeout(() => { onSaveMessages(messages) }, 2000)
+      return () => clearTimeout(timer)
     }
-  }, [messages.length]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [messages, session])
 
   // Empty state
   if (!session) {
@@ -272,7 +274,7 @@ export default function ChatView({
                   border: '1px solid #30363d',
                   borderRadius: '8px',
                   boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
-                  zIndex: 100,
+                  zIndex: 1001,
                   overflow: 'hidden',
                 }}
               >

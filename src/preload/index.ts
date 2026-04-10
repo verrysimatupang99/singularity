@@ -271,6 +271,10 @@ contextBridge.exposeInMainWorld('api', {
   crashReport: (report: unknown) => ipcRenderer.invoke('crash:report', report),
   crashList: () => ipcRenderer.invoke('crash:list'),
 
+  // Renderer Error Logging (Security Hardening)
+  logRendererError: (data: { message: string; stack?: string }) =>
+    ipcRenderer.send('log:renderer-error', data),
+
   // Auto-Updater (Phase 8 - TASK 1)
   updaterInstallNow: () => ipcRenderer.invoke('updater:install-now'),
   updaterCheckNow: () => ipcRenderer.invoke('updater:check-now'),

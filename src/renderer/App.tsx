@@ -69,9 +69,31 @@ export default function App() {
   useEffect(() => {
     loadSessions()
     loadSettings()
-    setupChatChunkListener()
-    setupCliStreamListener()
+    const cleanup1 = setupChatChunkListener()
+    const cleanup2 = window.api.onCliStream((data) => {
+      const chunk = data.chunk as StreamChunk
+
+      if (chunk.type === 'tool_call' && chunk.toolCall) {
+        const newToolCall: ToolCall = {
+          id: chunk.toolCall.id,
+          name: chunk.toolCall.kind,
+          args: chunk.toolCall.args || {},
+          status: 'pending',
+          timestamp: Date.now(),
+        }
+        setToolCalls((prev) => [...prev, newToolCall])
+      } else if (chunk.type === 'end_turn') {
+        setToolCalls((prev) =>
+          prev.map((tc) =>
+            tc.status === 'pending' || tc.status === 'executing'
+              ? { ...tc, status: chunk.stopReason === 'error' ? 'failed' as const : 'completed' as const, result: chunk.errorMessage }
+              : tc,
+          ),
+        )
+      }
+    })
     checkOnboarding()
+    return () => { cleanup1?.(); cleanup2?.() }
   }, [])
 
   // Refresh provider status when settings change
@@ -170,33 +192,6 @@ export default function App() {
     })
     return cleanup
   }, [activeRequestId, activeSessionId, sessions])
-
-  const setupCliStreamListener = useCallback(() => {
-    const cleanup = window.api.onCliStream((data) => {
-      const chunk = data.chunk as StreamChunk
-
-      if (chunk.type === 'tool_call' && chunk.toolCall) {
-        const newToolCall: ToolCall = {
-          id: chunk.toolCall.id,
-          name: chunk.toolCall.kind,
-          args: chunk.toolCall.args || {},
-          status: 'pending',
-          timestamp: Date.now(),
-        }
-        setToolCalls((prev) => [...prev, newToolCall])
-      } else if (chunk.type === 'end_turn') {
-        // Mark all pending/executing tool calls as completed
-        setToolCalls((prev) =>
-          prev.map((tc) =>
-            tc.status === 'pending' || tc.status === 'executing'
-              ? { ...tc, status: chunk.stopReason === 'error' ? 'failed' as const : 'completed' as const, result: chunk.errorMessage }
-              : tc,
-          ),
-        )
-      }
-    })
-    return cleanup
-  }, [])
 
   // Handle session selection
   const handleSelectSession = useCallback(async (id: string) => {
@@ -522,7 +517,7 @@ export default function App() {
                   </Suspense>
                 </ErrorBoundary>
               </div>
-              <ResizableDivider direction="vertical" onResize={(d) => setPanelWidth('memoryBrowser' as any, panels.memoryBrowser.width + d)} />
+              <ResizableDivider direction="vertical" onResize={(d) => setPanelWidth('memoryBrowser', panels.memoryBrowser.width + d)} />
             </>
           )}
 
@@ -536,7 +531,7 @@ export default function App() {
                   </Suspense>
                 </ErrorBoundary>
               </div>
-              <ResizableDivider direction="vertical" onResize={(d) => setPanelWidth('tokenDashboard' as any, panels.tokenDashboard.width + d)} />
+              <ResizableDivider direction="vertical" onResize={(d) => setPanelWidth('tokenDashboard', panels.tokenDashboard.width + d)} />
             </>
           )}
 

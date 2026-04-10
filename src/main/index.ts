@@ -1,5 +1,6 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
-import { join } from 'path'
+import { app, BrowserWindow, ipcMain, shell, session } from 'electron'
+import path, { join } from 'path'
+import os from 'os'
 import { writeFileSync, existsSync } from 'fs'
 import OpenAI from 'openai'
 import Anthropic from '@anthropic-ai/sdk'
@@ -48,14 +49,44 @@ import { pluginLoader } from './services/pluginLoader.js'
 import { computerUseController } from './services/computerUse.js'
 import { setupAutoUpdater } from './services/updater.js'
 
-// Fix GPU issues on Linux
+// Fix GPU issues on Linux only
 app.commandLine.appendSwitch('no-sandbox')
-app.commandLine.appendSwitch('disable-gpu')
-app.commandLine.appendSwitch('disable-gpu-sandbox')
-
-app.disableHardwareAcceleration()
+if (process.platform === 'linux') {
+  app.commandLine.appendSwitch('disable-gpu')
+  app.commandLine.appendSwitch('disable-gpu-sandbox')
+  app.disableHardwareAcceleration()
+}
 
 let mainWindow: BrowserWindow | null = null
+
+// ---------------------------------------------------------------------------
+// IPC Input Validation Helpers (Security Hardening)
+// ---------------------------------------------------------------------------
+
+function validateString(input: unknown, maxLen = 100_000): string {
+  if (typeof input !== 'string') throw new Error('Expected string input')
+  if (input.length > maxLen) throw new Error(`Input too long (max ${maxLen})`)
+  return input
+}
+
+function sanitizePath(input: unknown): string {
+  const p = validateString(input, 4096)
+  const resolved = path.resolve(p)
+  const home = os.homedir()
+  const userData = app.getPath('userData')
+  if (!resolved.startsWith(home) && !resolved.startsWith(userData)) {
+    throw new Error('Path traversal denied')
+  }
+  return resolved
+}
+
+const ALLOWED_SHELLS = ['bash', 'sh', 'zsh', 'fish', 'cmd.exe', 'powershell.exe', 'pwsh']
+function validateShell(input: unknown): string {
+  const s = validateString(input, 256)
+  const base = path.basename(s)
+  if (!ALLOWED_SHELLS.includes(base)) throw new Error(`Shell not allowed: ${base}`)
+  return s
+}
 
 // Track active streaming requests for cancellation
 const activeRequests = new Map<string, AbortController>()
@@ -69,10 +100,20 @@ function getAppPath(): string {
     : process.cwd()
 }
 
-function createWindow(): void {
-  const preloadPath = app.isPackaged
+function getPreloadPath(): string {
+  return app.isPackaged
     ? join(process.resourcesPath, 'app.asar', 'dist', 'preload', 'index.js')
     : join(process.cwd(), 'dist', 'preload', 'index.js')
+}
+
+function safeSend(channel: string, ...args: unknown[]): void {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    try { mainWindow.webContents.send(channel, ...args) } catch {}
+  }
+}
+
+function createWindow(): void {
+  const preloadPath = getPreloadPath()
 
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -101,9 +142,7 @@ function createWindow(): void {
 }
 
 function createSecondaryWindow(options: { route?: string; width?: number; height?: number } = {}): BrowserWindow {
-  const preloadPath = app.isPackaged
-    ? join(process.resourcesPath, 'app.asar', 'dist', 'preload', 'index.js')
-    : join(process.cwd(), 'dist', 'preload', 'index.js')
+  const preloadPath = getPreloadPath()
 
   const win = new BrowserWindow({
     width: options.width || 1200,
@@ -231,6 +270,7 @@ ipcMain.handle('session:export', async (_event, {
       lines.push(`### ${role} · ${time}`)
       lines.push(``)
       lines.push(msg.content)
+      // tokenUsage is set by renderer but not in storage type — safe to read
       if ((msg as any).tokenUsage?.totalTokens) {
         lines.push(``)
         lines.push(`*${(msg as any).tokenUsage.totalTokens.toLocaleString()} tokens*`)
@@ -327,6 +367,7 @@ ipcMain.handle('chat:send', async (_event, {
 
   // Run the chat request asynchronously
   ;(async () => {
+    if (controller.signal.aborted) return
     try {
       const resolvedApiKey = apiKey || getApiKey(provider) || ''
       let content = ''
@@ -353,13 +394,13 @@ ipcMain.handle('chat:send', async (_event, {
         throw new Error(`Unknown provider: ${provider}`)
       }
 
-      if (mainWindow && !controller.signal.aborted) {
-        mainWindow.webContents.send('chat:chunk', { requestId, content, done: true, usage })
+      if (!controller.signal.aborted) {
+        safeSend('chat:chunk', { requestId, content, done: true, usage })
       }
     } catch (err) {
-      if (mainWindow && !controller.signal.aborted) {
+      if (!controller.signal.aborted) {
         const errorMessage = err instanceof Error ? err.message : String(err)
-        mainWindow.webContents.send('chat:chunk', {
+        safeSend('chat:chunk', {
           requestId,
           content: `Error: ${errorMessage}`,
           done: true,
@@ -418,8 +459,8 @@ async function chatOpenAICompatible(
     const delta = chunk.choices[0]?.delta?.content
     if (delta) {
       fullContent += delta
-      if (mainWindow && !controller.signal.aborted) {
-        mainWindow.webContents.send('chat:chunk', { requestId, content: fullContent, done: false })
+      if (!controller.signal.aborted) {
+        safeSend('chat:chunk', { requestId, content: fullContent, done: false })
       }
     }
     // Track usage from final chunk
@@ -472,8 +513,8 @@ async function chatAnthropic(
     }
     if (chunk.type === 'content_block_delta' && 'text' in chunk.delta) {
       fullContent += chunk.delta.text
-      if (mainWindow && !controller.signal.aborted) {
-        mainWindow.webContents.send('chat:chunk', { requestId, content: fullContent, done: false })
+      if (!controller.signal.aborted) {
+        safeSend('chat:chunk', { requestId, content: fullContent, done: false })
       }
     }
   }
@@ -542,8 +583,8 @@ async function chatGemini(
           const text = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
           if (text) {
             fullContent += text
-            if (mainWindow && !controller.signal.aborted) {
-              mainWindow.webContents.send('chat:chunk', { requestId, content: fullContent, done: false })
+            if (!controller.signal.aborted) {
+              safeSend('chat:chunk', { requestId, content: fullContent, done: false })
             }
           }
           // Track usage from usageMetadata
@@ -608,16 +649,12 @@ ipcMain.handle('cli:spawn', async (_event, { cliName, cwd, config }: {
     const unsubs = new Set<() => void>()
 
     const unsubStream = session.onStream((chunk) => {
-      if (mainWindow) {
-        mainWindow.webContents.send('cli:stream', { sessionId, chunk })
-      }
+      safeSend('cli:stream', { sessionId, chunk })
     })
     unsubs.add(unsubStream)
 
     const unsubPerm = session.onPermissionRequest((req) => {
-      if (mainWindow) {
-        mainWindow.webContents.send('cli:permission', { sessionId, request: req })
-      }
+      safeSend('cli:permission', { sessionId, request: req })
     })
     unsubs.add(unsubPerm)
 
@@ -625,9 +662,7 @@ ipcMain.handle('cli:spawn', async (_event, { cliName, cwd, config }: {
       // Clean up subscriptions
       for (const unsub of unsubs) unsub()
       cliStreamUnsubs.delete(sessionId)
-      if (mainWindow) {
-        mainWindow.webContents.send('cli:exit', { sessionId })
-      }
+      safeSend('cli:exit', { sessionId })
     })
 
     cliStreamUnsubs.set(sessionId, unsubs)
@@ -856,9 +891,27 @@ ipcMain.handle('auth:open-qwen-console', async () => {
   }
 })
 
-ipcMain.handle('auth:validate-gemini', async (_event, apiKey: string) => validateGeminiApiKey(apiKey))
-ipcMain.handle('auth:google-oauth-start', async (_event, clientId: string) => googleOAuthWithClientId(clientId, true))
-ipcMain.handle('auth:google-oauth-stop', async (_event, clientId: string) => googleOAuthWithClientId(clientId, false))
+ipcMain.handle('auth:validate-gemini', async (_event, apiKey: string) => {
+  try {
+    return await validateGeminiApiKey(apiKey)
+  } catch (err) {
+    return { valid: false, error: err instanceof Error ? err.message : String(err) }
+  }
+})
+ipcMain.handle('auth:google-oauth-start', async (_event, clientId: string) => {
+  try {
+    return await googleOAuthWithClientId(clientId, true)
+  } catch (err) {
+    return { status: 'error' as const, error: err instanceof Error ? err.message : String(err) }
+  }
+})
+ipcMain.handle('auth:google-oauth-stop', async (_event, clientId: string) => {
+  try {
+    return await googleOAuthWithClientId(clientId, false)
+  } catch (err) {
+    return { status: 'error' as const, error: err instanceof Error ? err.message : String(err) }
+  }
+})
 ipcMain.handle('auth:open-google-cloud-console', async () => {
   const { shell } = await import('electron')
   await shell.openExternal('https://console.cloud.google.com/apis/credentials')
@@ -921,9 +974,7 @@ ipcMain.handle('auth:connect-poll', async (_event, {
       const result = await pollGitHubDeviceToken(device_code, interval, controller.signal)
       if ('access_token' in result) {
         setApiKey('github-copilot', result.access_token)
-        if (mainWindow) {
-          mainWindow.webContents.send('auth:status:update', { providerId: 'github-copilot', connected: true })
-        }
+        safeSend('auth:status:update', { providerId: 'github-copilot', connected: true })
       }
       return result
     }
@@ -937,9 +988,7 @@ ipcMain.handle('auth:connect-poll', async (_event, {
 ipcMain.handle('auth:disconnect', (_event, { providerId }: { providerId: string }) => {
   try {
     deleteApiKey(providerId)
-    if (mainWindow) {
-      mainWindow.webContents.send('auth:status:update', { providerId, connected: false })
-    }
+    safeSend('auth:status:update', { providerId, connected: false })
   } catch (err) {
     console.error('auth:disconnect error:', err)
     throw err
@@ -959,12 +1008,14 @@ ipcMain.handle('security:isSecureMode', () => {
 // ---------------------------------------------------------------------------
 
 ipcMain.handle('ai:applyDiff', async (_event, { filePath, diff }: { filePath: string; diff: string }) => {
+  const safePath = sanitizePath(filePath)
+  const safeDiff = validateString(diff)
   const { readFileSync, writeFileSync } = await import('fs')
   try {
-    const original = readFileSync(filePath, 'utf8')
-    const applied = applyUnifiedDiff(original, diff)
-    writeFileSync(filePath, applied, 'utf8')
-    const lines = countDiffLines(diff)
+    const original = readFileSync(safePath, 'utf8')
+    const applied = applyUnifiedDiff(original, safeDiff)
+    writeFileSync(safePath, applied, 'utf8')
+    const lines = countDiffLines(safeDiff)
     return { success: true, linesChanged: lines }
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : String(err) }
@@ -972,12 +1023,14 @@ ipcMain.handle('ai:applyDiff', async (_event, { filePath, diff }: { filePath: st
 })
 
 ipcMain.handle('ai:previewDiff', async (_event, { filePath, diff }: { filePath: string; diff: string }) => {
+  const safePath = sanitizePath(filePath)
+  const safeDiff = validateString(diff)
   const { readFileSync } = await import('fs')
   try {
-    const original = readFileSync(filePath, 'utf8')
-    const hunks = parseDiffHunks(diff)
+    const original = readFileSync(safePath, 'utf8')
+    const hunks = parseDiffHunks(safeDiff)
     return {
-      filePath,
+      filePath: safePath,
       hunks,
       originalLines: original.split('\n').length,
       totalAdded: hunks.reduce((sum, h) => sum + h.additions, 0),
@@ -990,10 +1043,12 @@ ipcMain.handle('ai:previewDiff', async (_event, { filePath, diff }: { filePath: 
 })
 
 ipcMain.handle('ai:generateDiff', async (_event, { filePath, newContent }: { filePath: string; newContent: string }) => {
+  const safePath = sanitizePath(filePath)
+  const safeContent = validateString(newContent)
   const { readFileSync } = await import('fs')
   try {
-    const original = readFileSync(filePath, 'utf8')
-    const diff = generateUnifiedDiff(filePath, filePath, original, newContent)
+    const original = readFileSync(safePath, 'utf8')
+    const diff = generateUnifiedDiff(safePath, safePath, original, safeContent)
     return { success: true, diff }
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : String(err) }
@@ -1016,6 +1071,7 @@ ipcMain.handle('fs:pickFolder', async () => {
 
 // fs:readDir — read directory contents (one level)
 ipcMain.handle('fs:readDir', async (_event, dirPath: string) => {
+  const safeDirPath = sanitizePath(dirPath)
   const { readdirSync, statSync } = await import('fs')
   const { join } = await import('path')
 
@@ -1026,11 +1082,11 @@ ipcMain.handle('fs:readDir', async (_event, dirPath: string) => {
   ])
 
   try {
-    const entries = readdirSync(dirPath)
+    const entries = readdirSync(safeDirPath)
     return entries
       .filter((name) => !IGNORED.has(name) && !name.startsWith('.'))
       .map((name) => {
-        const fullPath = join(dirPath, name)
+        const fullPath = join(safeDirPath, name)
         const stat = statSync(fullPath)
         return {
           name,
@@ -1051,20 +1107,23 @@ ipcMain.handle('fs:readDir', async (_event, dirPath: string) => {
 
 // fs:readFile — read file content (text)
 ipcMain.handle('fs:readFile', async (_event, filePath: string) => {
+  const safePath = sanitizePath(filePath)
   const { readFileSync, statSync } = await import('fs')
-  const stat = statSync(filePath)
+  const stat = statSync(safePath)
   if (stat.size > 2 * 1024 * 1024) {
     throw new Error('File too large for editor (max 2MB)')
   }
-  return readFileSync(filePath, 'utf8')
+  return readFileSync(safePath, 'utf8')
 })
 
 // fs:writeFile — write file content
 ipcMain.handle('fs:writeFile', async (_event, { filePath, content }: { filePath: string; content: string }) => {
+  const safePath = sanitizePath(filePath)
+  const safeContent = validateString(content)
   const { writeFileSync, mkdirSync } = await import('fs')
   const { dirname } = await import('path')
-  mkdirSync(dirname(filePath), { recursive: true })
-  writeFileSync(filePath, content, 'utf8')
+  mkdirSync(dirname(safePath), { recursive: true })
+  writeFileSync(safePath, safeContent, 'utf8')
   return { success: true }
 })
 
@@ -1076,34 +1135,38 @@ ipcMain.handle('fs:search', async (_event, {
   directory: string
   options: { caseSensitive: boolean; useRegex: boolean; filePattern?: string }
 }) => {
-  const { execSync } = await import('child_process')
+  const safePattern = validateString(pattern, 10_000)
+  const safeDirectory = sanitizePath(directory)
+  const { execFileSync, execSync } = await import('child_process')
   const { existsSync } = await import('fs')
 
-  if (!existsSync(directory)) return []
+  if (!existsSync(safeDirectory)) return []
 
   const rgAvailable = (() => {
     try { execSync('rg --version', { timeout: 1000 }); return true }
     catch { return false }
   })()
 
-  const flags = [
+  const rgArgs = [
     '--line-number',
     '--with-filename',
     '--no-heading',
-    options.caseSensitive ? '' : '--ignore-case',
-    options.useRegex ? '' : '--fixed-strings',
-    options.filePattern ? `--glob '${options.filePattern}'` : '',
-    '--glob !node_modules',
-    '--glob !.git',
-    '--glob !dist',
-    '--glob !build',
-    pattern,
-    directory,
-  ].filter(Boolean)
+    ...(options.caseSensitive ? [] : ['--ignore-case']),
+    ...(options.useRegex ? [] : ['--fixed-strings']),
+    ...(options.filePattern ? ['--glob', options.filePattern] : []),
+    '--glob', '!node_modules',
+    '--glob', '!.git',
+    '--glob', '!dist',
+    '--glob', '!build',
+    '--',
+    safePattern,
+    safeDirectory,
+  ]
 
   try {
-    const cmd = rgAvailable ? `rg ${flags.join(' ')}` : `grep -rn ${flags.join(' ')}`
-    const output = execSync(cmd, { timeout: 10000, maxBuffer: 10 * 1024 * 1024 }).toString()
+    const output = rgAvailable
+      ? execFileSync('rg', rgArgs, { timeout: 10000, maxBuffer: 10 * 1024 * 1024 }).toString()
+      : execFileSync('grep', ['-rn', ...(options.caseSensitive ? [] : ['-i']), ...(options.useRegex ? [] : ['-F']), '--', safePattern, safeDirectory], { timeout: 10000, maxBuffer: 10 * 1024 * 1024 }).toString()
 
     return output.trim().split('\n').filter(Boolean).map((line) => {
       const parts = line.split(':')
@@ -1132,11 +1195,12 @@ ipcMain.handle('file:pick', async () => {
 })
 
 ipcMain.handle('file:read', async (_event, filePath: string) => {
+  const safePath = sanitizePath(filePath)
   const { readFileSync, statSync } = await import('fs')
   const { extname } = await import('path')
-  const stat = statSync(filePath)
+  const stat = statSync(safePath)
   if (stat.size > 10 * 1024 * 1024) throw new Error('File too large (max 10MB)')
-  const ext = extname(filePath).toLowerCase()
+  const ext = extname(safePath).toLowerCase()
   const mimeMap: Record<string, string> = {
     '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
     '.gif': 'image/gif', '.webp': 'image/webp', '.pdf': 'application/pdf',
@@ -1147,11 +1211,11 @@ ipcMain.handle('file:read', async (_event, filePath: string) => {
   }
   const mimeType = mimeMap[ext] || 'application/octet-stream'
   const isText = mimeType.startsWith('text/') || mimeType === 'application/json'
-  const name = filePath.split('/').at(-1) || 'unknown'
+  const name = safePath.split('/').at(-1) || 'unknown'
   if (isText) {
-    return { type: 'text', content: readFileSync(filePath, 'utf8'), mimeType, name, size: stat.size }
+    return { type: 'text', content: readFileSync(safePath, 'utf8'), mimeType, name, size: stat.size }
   } else {
-    return { type: 'image', content: readFileSync(filePath).toString('base64'), mimeType, name, size: stat.size }
+    return { type: 'image', content: readFileSync(safePath).toString('base64'), mimeType, name, size: stat.size }
   }
 })
 
@@ -1219,32 +1283,30 @@ ipcMain.handle('auth:import-gemini-creds', async () => {
 
 const terminals = new Map<string, pty.IPty>()
 
-ipcMain.handle('terminal:create', (_event, { cwd, shell }: { cwd: string; shell?: string }) => {
+ipcMain.handle('terminal:create', (_event, { cwd, shell: shellArg }: { cwd: string; shell?: string }) => {
+  const safeCwd = sanitizePath(cwd)
   const termId = `term_${Date.now()}`
   const defaultShell = process.platform === 'win32'
     ? process.env.COMSPEC || 'cmd.exe'
     : process.env.SHELL || '/bin/bash'
+  const resolvedShell = shellArg ? validateShell(shellArg) : defaultShell
   const args = process.platform === 'win32' ? [] : ['--login']
 
-  const term = pty.spawn(shell || defaultShell, args, {
+  const term = pty.spawn(resolvedShell, args, {
     name: 'xterm-256color',
-    cwd: cwd || process.cwd(),
+    cwd: safeCwd || process.cwd(),
     env: process.env as Record<string, string>,
     cols: 80,
     rows: 24,
   })
 
   term.onData((data) => {
-    if (mainWindow) {
-      mainWindow.webContents.send('terminal:data', { termId, data })
-    }
+    safeSend('terminal:data', { termId, data })
   })
 
   term.onExit(({ exitCode }) => {
     terminals.delete(termId)
-    if (mainWindow) {
-      mainWindow.webContents.send('terminal:exit', { termId, exitCode })
-    }
+    safeSend('terminal:exit', { termId, exitCode })
   })
 
   terminals.set(termId, term)
@@ -1283,16 +1345,21 @@ ipcMain.handle('terminal:kill', (_event, termId: string) => {
 // ---------------------------------------------------------------------------
 
 ipcMain.handle('optimizer:compress', async (_event, { messages, strategy, keepLast, provider, model }: {
-  messages: any[]
+  messages: unknown[]
   strategy: string
   keepLast?: number
   provider?: string
   model?: string
 }) => {
-  if (strategy === 'rolling') return await tokenOptimizer.rollingSummary(messages, keepLast, provider, model)
-  if (strategy === 'truncate') return tokenOptimizer.truncateToFit(messages, 50000)
-  if (strategy === 'deduplicate') return tokenOptimizer.deduplicateFileAttachments(messages)
-  return messages
+  if (!Array.isArray(messages)) return messages
+  const safeMessages = messages.map(m => {
+    if (typeof m === 'object' && m !== null && 'content' in m) return m as any
+    return { role: 'user', content: String(m), timestamp: Date.now() }
+  })
+  if (strategy === 'rolling') return await tokenOptimizer.rollingSummary(safeMessages, keepLast, provider, model)
+  if (strategy === 'truncate') return tokenOptimizer.truncateToFit(safeMessages, 50000)
+  if (strategy === 'deduplicate') return tokenOptimizer.deduplicateFileAttachments(safeMessages)
+  return safeMessages
 })
 
 ipcMain.handle('optimizer:estimate', (_event, messages: any[]) => {
@@ -1304,7 +1371,12 @@ ipcMain.handle('memory:get', () => agentMemory.getAll())
 ipcMain.handle('memory:forget', (_event, key: string) => { agentMemory.forget(key); return { ok: true } })
 
 // Token Tracker (Phase 10 - TASK 3)
-ipcMain.handle('tokens:record', (_event, rec: any) => { tokenTracker.record(rec); return { ok: true } })
+ipcMain.handle('tokens:record', (_event, rec: unknown) => {
+  if (rec && typeof rec === 'object' && 'sessionId' in rec && 'totalTokens' in rec) {
+    tokenTracker.record(rec as any)
+  }
+  return { ok: true }
+})
 ipcMain.handle('tokens:today', () => tokenTracker.getTotalToday())
 ipcMain.handle('tokens:month', () => tokenTracker.getTotalThisMonth())
 ipcMain.handle('tokens:breakdown', () => tokenTracker.getProviderBreakdown())
@@ -1324,9 +1396,17 @@ ipcMain.handle('memory:remember', (_event, { key, value, tags }: { key: string; 
 // ---------------------------------------------------------------------------
 
 ipcMain.handle('agent:executeTask', async (_event, { task, workspaceRoot, provider, model }: { task: string; workspaceRoot: string; provider: string; model: string }) => {
+  const safeTask = validateString(task, 100_000)
+  const safeRoot = sanitizePath(workspaceRoot)
+  const safeProvider = validateString(provider, 50)
+  const safeModel = validateString(model, 200)
   const agentId = `agent_${Date.now()}`
   ;(async () => {
-    await runAgentLoop({ agentId, task, workspaceRoot, provider, model, onEvent: (event) => mainWindow?.webContents.send('agent:event', event) })
+    try {
+      await runAgentLoop({ agentId, task: safeTask, workspaceRoot: safeRoot, provider: safeProvider, model: safeModel, onEvent: (event) => safeSend('agent:event', event) })
+    } catch (err: any) {
+      safeSend('agent:error', { agentId, error: err.message })
+    }
   })()
   return { agentId }
 })
@@ -1341,24 +1421,29 @@ ipcMain.handle('agent:approve', (_event, { agentId, approved }: { agentId: strin
 // ---------------------------------------------------------------------------
 
 ipcMain.handle('orchestrator:plan', async (_event, { task, workspaceRoot, provider, model }: { task: string; workspaceRoot: string; provider: string; model: string }) => {
+  const safeTask = validateString(task, 100_000)
+  const safeRoot = sanitizePath(workspaceRoot)
+  const safeProvider = validateString(provider, 50)
+  const safeModel = validateString(model, 200)
   const orchId = `orch_${Date.now()}`
-  const orch = new OrchestratorAgent({ orchestratorId: orchId, task, workspaceRoot, provider, model, onEvent: () => {} })
-  const plan = await orch.plan(task)
+  const orch = new OrchestratorAgent({ orchestratorId: orchId, task: safeTask, workspaceRoot: safeRoot, provider: safeProvider, model: safeModel, onEvent: () => {} })
+  const plan = await orch.plan(safeTask)
   activeOrchestrators.set(orchId, orch)
   return plan
 })
 
-ipcMain.handle('orchestrator:execute', async (_event, { plan, workspaceRoot, provider, model }: { plan: any; workspaceRoot: string; provider: string; model: string }) => {
+ipcMain.handle('orchestrator:execute', async (_event, { plan, workspaceRoot, provider, model }: { plan: { orchestratorId?: string; task?: string; subAgents?: unknown[] }; workspaceRoot: string; provider: string; model: string }) => {
+  if (!plan?.task || !plan?.subAgents) throw new Error('Invalid plan: missing task or subAgents')
   const orchId = plan.orchestratorId
   const existing = activeOrchestrators.get(orchId)
-  const orch = existing || new OrchestratorAgent({ orchestratorId: orchId, task: plan.task, workspaceRoot, provider, model, onEvent: (e) => mainWindow?.webContents.send('orchestrator:event', e) })
+  const orch = existing || new OrchestratorAgent({ orchestratorId: orchId, task: plan.task, workspaceRoot, provider, model, onEvent: (e) => safeSend('orchestrator:event', e) })
   if (!existing) activeOrchestrators.set(orchId, orch)
   ;(async () => {
     try {
       await orch.execute(plan)
-      mainWindow?.webContents.send('orchestrator:done', { orchestratorId: orchId })
+      safeSend('orchestrator:done', { orchestratorId: orchId })
     } catch (err: any) {
-      mainWindow?.webContents.send('orchestrator:error', { orchestratorId: orchId, error: err.message })
+      safeSend('orchestrator:error', { orchestratorId: orchId, error: err.message })
     }
   })()
   return { orchestratorId: orchId }
@@ -1374,9 +1459,7 @@ ipcMain.handle('orchestrator:status', () => {
 
 ipcMain.handle('orchestrator:cancel', async (_event, orchestratorId: string) => {
   activeOrchestrators.delete(orchestratorId)
-  if (mainWindow) {
-    mainWindow.webContents.send('orchestrator:cancelled', { orchestratorId })
-  }
+  safeSend('orchestrator:cancelled', { orchestratorId })
   return { ok: true }
 })
 
@@ -1385,7 +1468,7 @@ ipcMain.handle('orchestrator:cancel', async (_event, orchestratorId: string) => 
 // ---------------------------------------------------------------------------
 
 ipcMain.handle('plugins:list', () => pluginLoader.getLoadedPlugins().map(p => ({ name: p.name, version: p.version, toolCount: p.tools.length })))
-ipcMain.handle('plugins:install', async (_event, pluginDir: string) => pluginLoader.installPlugin(pluginDir))
+ipcMain.handle('plugins:install', async (_event, pluginDir: string) => pluginLoader.installPlugin(sanitizePath(pluginDir)))
 ipcMain.handle('plugins:unload', (_event, name: string) => { pluginLoader.unloadPlugin(name); return { ok: true } })
 ipcMain.handle('plugins:fetchRegistry', async (_event, url?: string) => pluginLoader.fetchRegistry(url))
 ipcMain.handle('plugins:installFromRegistry', async (_event, entry: any) => pluginLoader.installFromRegistry(entry))
@@ -1422,6 +1505,32 @@ ipcMain.handle('storage:isFirstRun', () => isFirstRun())
 // ---------------------------------------------------------------------------
 
 app.whenReady().then(async () => {
+  // --- Content Security Policy ---
+  const isDev = !app.isPackaged
+  const scriptSrc = isDev ? "'self' 'unsafe-eval'" : "'self'"
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [
+          `default-src 'self'; ` +
+          `script-src ${scriptSrc}; ` +
+          `style-src 'self' 'unsafe-inline'; ` +
+          `font-src 'self' data:; ` +
+          `img-src 'self' data: blob: https:; ` +
+          `connect-src 'self' https: wss:; ` +
+          `worker-src 'self' blob:`
+        ]
+      }
+    })
+  })
+
+  // --- Renderer crash logging ---
+  ipcMain.on('log:renderer-error', (_event, data: { message: string; stack?: string }) => {
+    console.error('[renderer-crash]', data.message)
+    if (data.stack) console.error(data.stack)
+  })
+
   initProviders({})
   // Load plugins on startup
   try { await pluginLoader.loadFromDir(pluginLoader['pluginDir']) } catch {}
@@ -1445,6 +1554,11 @@ app.on('activate', () => {
 
 // Graceful shutdown: stop all MCP servers
 app.on('before-quit', async () => {
+  // Cleanup all terminal PTY processes
+  for (const [, term] of terminals) {
+    try { term.kill() } catch {}
+  }
+  terminals.clear()
   try {
     await mcpManager.shutdown()
   } catch (err) {

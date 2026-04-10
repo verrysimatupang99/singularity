@@ -298,7 +298,15 @@ export default function SettingsView({
   }, [])
 
   const startGithubPolling = useCallback((intervalMs: number) => {
+    const MAX_POLL_ATTEMPTS = 120  // ~10 minutes at 5s intervals
+    let attempts = 0
     const poll = async () => {
+      attempts++
+      if (attempts > MAX_POLL_ATTEMPTS) {
+        setGithubAuthStatus('error')
+        setGithubAuthError('Authentication timed out. Please try again.')
+        return
+      }
       try {
         const result = await window.api.authGithubPoll()
         if (result.status === 'complete') {

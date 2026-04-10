@@ -321,11 +321,11 @@ declare global {
       onAgentEvent: (cb: (event: unknown) => void) => () => void
 
       // Token Optimizer (Phase 6 - TASK 2)
-      optimizerCompress: (opts: { messages: any[]; strategy: string; keepLast?: number; provider?: string; model?: string }) => Promise<any[]>
-      optimizerEstimate: (messages: any[]) => Promise<{ estimatedTokens: number; messageCount: number }>
+      optimizerCompress: (opts: { messages: ChatMessage[]; strategy: string; keepLast?: number; provider?: string; model?: string }) => Promise<ChatMessage[]>
+      optimizerEstimate: (messages: ChatMessage[]) => Promise<{ estimatedTokens: number; messageCount: number }>
 
       // Memory (Phase 6 - TASK 5)
-      memoryGet: () => Promise<any[]>
+      memoryGet: () => Promise<Record<string, unknown>[]>
       memoryForget: (key: string) => Promise<{ ok: boolean }>
 
       // Token Tracker (Phase 10 - TASK 3)
@@ -336,16 +336,16 @@ declare global {
       tokenRecent: (limit?: number) => Promise<Array<{ sessionId: string; tokens: number; cost: number; lastUsed: number }>>
 
       // Memory Browser (Phase 10 - TASK 4)
-      memoryList: () => Promise<any[]>
+      memoryList: () => Promise<Record<string, unknown>[]>
       memoryDeleteById: (id: string) => Promise<{ ok: boolean }>
       memoryUpdate: (id: string, value: string) => Promise<{ ok: boolean }>
       memoryClear: () => Promise<{ ok: boolean }>
-      memorySearch: (query: string) => Promise<any[]>
+      memorySearch: (query: string) => Promise<Record<string, unknown>[]>
       memoryRemember: (key: string, value: string, tags?: string[]) => Promise<{ ok: boolean }>
 
       // Orchestrator (Phase 7 - TASK 1)
-      orchestratorPlan: (opts: { task: string; workspaceRoot: string; provider: string; model: string }) => Promise<any>
-      orchestratorExecute: (opts: { plan: any; workspaceRoot: string; provider: string; model: string }) => Promise<{ orchestratorId: string }>
+      orchestratorPlan: (opts: { task: string; workspaceRoot: string; provider: string; model: string }) => Promise<Record<string, unknown>>
+      orchestratorExecute: (opts: { plan: Record<string, unknown>; workspaceRoot: string; provider: string; model: string }) => Promise<{ orchestratorId: string }>
       orchestratorStatus: () => Promise<{ active: boolean; orchestrators: Array<{ orchestratorId: string; status: string }> }>
       orchestratorCancel: (orchestratorId: string) => Promise<{ ok: boolean }>
       onOrchestratorEvent: (cb: (event: unknown) => void) => () => void
@@ -364,6 +364,9 @@ declare global {
       // Crash Reporter (Phase 8 - TASK 3)
       crashReport: (report: { message: string; stack?: string; componentStack?: string; context?: string }) => Promise<string>
       crashList: () => Promise<Array<{ id: string; timestamp: number; message: string; stack?: string; componentStack?: string; context?: string; appVersion: string; platform: string }>>
+
+      // Renderer Error Logging (Security Hardening)
+      logRendererError: (data: { message: string; stack?: string }) => void
 
       // Auto-Updater (Phase 8 - TASK 1)
       updaterInstallNow: () => Promise<void>

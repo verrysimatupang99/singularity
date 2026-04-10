@@ -56,8 +56,8 @@ export async function runAgentLoop({ agentId, task, workspaceRoot, provider, mod
       const res = await callProvider(provider, model, messages, apiKey)
       onEvent({ agentId, step: turn, type: 'done', finalResponse: res })
       break
-    } catch (err: any) {
-      if (err.message?.includes('<tool>')) {
+    } catch (err: unknown) {
+      if (err instanceof Error && err.message?.includes('<tool>')) {
         const toolCall = parseToolCall(err.message)
         onEvent({ agentId, step: turn, type: 'tool_call', toolCall })
         let approved = !toolCall.requiresApproval

@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.0.0-hotfix] — 2026-04-10
+
+### Fixed
+- fix(packaging): externalize node-pty, fix CJS default import, remove circular chunk (3fa7c40)
+- fix(runtime): electron-updater CJS interop — use default import (0a4c76d)
+- fix(updater): HTTP 406 guard — skip check when no release assets exist (24b26aa)
+- fix(main): replace require() with ESM import in storage.ts (33448fe)
+- fix(security): remove explicit sandbox:false from secondary window (33448fe)
+- fix(build): convert OpenAI dynamic imports to static imports (33448fe)
+
+### Security
+- fix(security): add Content-Security-Policy headers via session.webRequest
+- fix(security): add IPC input validation (path traversal, shell injection, string length)
+- feat(security): add logRendererError IPC channel for crash telemetry
+
+### Added
+- feat(ci): add GitHub Actions release workflow triggered on v* tags
+- docs: add troubleshooting section to README
+
 ## [1.0.0] — 2026-04-10
 
 ### Added

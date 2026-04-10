@@ -20,13 +20,33 @@ export async function executeTool(tc: { toolName: string; args: Record<string, u
   const { readFileSync, writeFileSync, readdirSync, statSync, mkdirSync } = await import('fs')
   const { execSync } = await import('child_process')
   const { join, dirname } = await import('path')
+
+  function validateString(input: unknown, maxLen = 10000): string {
+    if (typeof input !== 'string') throw new Error('Expected string')
+    if (input.length > maxLen) throw new Error(`Input too long (max ${maxLen})`)
+    return input
+  }
+
   try {
     switch (tc.toolName) {
       case 'read_file': return { output: readFileSync(tc.args.path as string, 'utf8') }
       case 'write_file': { const p = tc.args.path as string; mkdirSync(dirname(p), { recursive: true }); writeFileSync(p, tc.args.content as string, 'utf8'); return { output: `Written to ${p}` } }
-      case 'run_terminal': { const o = execSync(tc.args.command as string, { cwd: (tc.args.cwd as string) || ws, timeout: 30000, maxBuffer: 5*1024*1024 }); return { output: o.toString() || '(no output)' } }
+      case 'run_terminal': {
+        const cmd = validateString(tc.args.command, 50000)
+        const cwd = tc.args.cwd ? validateString(tc.args.cwd, 4096) : ws
+        const o = execSync(cmd, { cwd, timeout: 60000, maxBuffer: 5*1024*1024 })
+        return { output: o.toString() || '(no output)' }
+      }
       case 'list_files': { const IG = new Set(['node_modules','.git','dist','build']); const e = readdirSync(tc.args.path as string).filter(n => !IG.has(n) && !n.startsWith('.')).map(n => `${statSync(join(tc.args.path as string, n)).isDirectory()?'D':'F'} ${n}`); return { output: e.join('\n') || '(empty)' } }
-      case 'search_in_files': { const o = execSync(`grep -rn '${tc.args.pattern}' '${(tc.args.directory as string)||ws}' 2>/dev/null | head -50`, { timeout: 10000, maxBuffer: 5*1024*1024 }); return { output: o.toString().trim() || '(no matches)' } }
+      case 'search_in_files': {
+        const pattern = validateString(tc.args.pattern, 500)
+        const dir = validateString((tc.args.directory as string) || ws, 4096)
+        const { execFileSync } = await import('child_process')
+        try {
+          const output = execFileSync('grep', ['-rn', '-F', '--', pattern, dir], { timeout: 10000, maxBuffer: 5*1024*1024 })
+          return { output: output.toString().trim().split('\n').slice(0, 50).join('\n') || '(no matches)' }
+        } catch { return { output: '(no matches)' } }
+      }
       case 'remember': {
         const { agentMemory } = await import('./agentMemory.js')
         agentMemory.remember(tc.args.key as string, tc.args.value as string, (tc.args.tags as string[]) || [])

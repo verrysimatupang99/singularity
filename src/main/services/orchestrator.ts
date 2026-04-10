@@ -2,6 +2,7 @@ import type { SubAgentSpec, SubAgentResult, OrchestratorPlan, OrchestratorEvent 
 import { runAgentLoop } from './agentRunner.js'
 import { getApiKey } from './storage.js'
 import { BUILT_IN_TOOLS } from './agentTools.js'
+import OpenAI from 'openai'
 
 export interface OrchestratorOptions {
   orchestratorId: string
@@ -33,38 +34,42 @@ export class OrchestratorAgent {
   constructor(opts: OrchestratorOptions) { this.opts = opts }
 
   async plan(task: string): Promise<OrchestratorPlan> {
-    const apiKey = getApiKey(this.opts.provider)
-    if (!apiKey) throw new Error(`No API key for ${this.opts.provider}`)
+    try {
+      const apiKey = getApiKey(this.opts.provider)
+      if (!apiKey) throw new Error(`No API key for ${this.opts.provider}`)
 
-    const toolsList = BUILT_IN_TOOLS.map(t => t.name).join(', ')
-    const prompt = `You are a task orchestrator. Break this task into parallel sub-tasks.
+      const toolsList = BUILT_IN_TOOLS.map(t => t.name).join(', ')
+      const prompt = `You are a task orchestrator. Break this task into parallel sub-tasks.
 Respond with ONLY valid JSON:
 {"subAgents":[{"id":"agent_0","role":"code_writer","task":"...","tools":["read_file","write_file"],"dependsOn":[],"priority":"normal"}]}
 Rules: max 5 sub-agents, each has ONE focused task, use dependsOn only when truly needed, tools must be subset of: ${toolsList}. Minimize dependencies.
 Task: ${task}
 Workspace: ${this.opts.workspaceRoot}`
 
-    const client = new OpenAI({ apiKey, baseURL: this.opts.provider === 'qwen' ? 'https://dashscope.aliyuncs.com/compatible-mode/v1' : this.opts.provider === 'openrouter' ? 'https://openrouter.ai/api/v1' : undefined })
-    const resp = await client.chat.completions.create({ model: this.opts.model, messages: [{ role: 'user', content: prompt }], max_tokens: 1024 })
-    const content = resp.choices[0]?.message?.content || ''
+      const client = new OpenAI({ apiKey, baseURL: this.opts.provider === 'qwen' ? 'https://dashscope.aliyuncs.com/compatible-mode/v1' : this.opts.provider === 'openrouter' ? 'https://openrouter.ai/api/v1' : undefined })
+      const resp = await client.chat.completions.create({ model: this.opts.model, messages: [{ role: 'user', content: prompt }], max_tokens: 1024 })
+      const content = resp.choices[0]?.message?.content || ''
 
-    // Try to parse JSON from response (may be wrapped in markdown)
-    const jsonMatch = content.match(/\{[\s\S]*\}/)
-    const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { subAgents: [] }
+      // Try to parse JSON from response (may be wrapped in markdown)
+      const jsonMatch = content.match(/\{[\s\S]*\}/)
+      const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { subAgents: [] }
 
-    return {
-      orchestratorId: this.opts.orchestratorId,
-      task,
-      subAgents: (parsed.subAgents || []).map((s: any, i: number) => ({
-        id: s.id || `agent_${i}`,
-        role: s.role || 'general',
-        task: s.task || task,
-        tools: (s.tools || ['read_file']).filter((t: string) => BUILT_IN_TOOLS.some(bt => bt.name === t)),
-        dependsOn: s.dependsOn || [],
-        priority: s.priority || 'normal',
-      })),
-      strategy: 'dag',
-      estimatedTokens: parsed.subAgents?.length * 5000 || 15000,
+      return {
+        orchestratorId: this.opts.orchestratorId,
+        task,
+        subAgents: (parsed.subAgents || []).map((s: any, i: number) => ({
+          id: s.id || `agent_${i}`,
+          role: s.role || 'general',
+          task: s.task || task,
+          tools: (s.tools || ['read_file']).filter((t: string) => BUILT_IN_TOOLS.some(bt => bt.name === t)),
+          dependsOn: s.dependsOn || [],
+          priority: s.priority || 'normal',
+        })),
+        strategy: 'dag',
+        estimatedTokens: parsed.subAgents?.length * 5000 || 15000,
+      }
+    } catch (err: unknown) {
+      throw new Error(`Orchestrator planning failed: ${err instanceof Error ? err.message : String(err)}`)
     }
   }
 

@@ -45,7 +45,7 @@ npm run dev
 
 ```bash
 npm run dev              # Start with hot reload
-npm test                 # Run 85+ unit tests
+npm test                 # Run 199 unit tests
 npm run test:coverage    # Coverage report
 npm run typecheck        # TypeScript check
 npm run package          # Build distributable (.deb, .AppImage, .dmg, .exe)
@@ -149,6 +149,31 @@ src/
     ├── providers/                  # Provider unit tests (85+ tests)
     └── services/                   # Service unit tests
 ```
+
+## Troubleshooting
+
+### /dev/shm permission error saat launch di Linux
+
+Jalankan sekali:
+
+```bash
+sudo chmod 1777 /dev/shm
+```
+
+Ini dibutuhkan Chromium untuk shared memory IPC.
+
+### App tidak launch setelah install di beberapa distro
+
+Coba:
+
+```bash
+singularity --no-sandbox
+```
+
+### Auto-updater menampilkan error saat pertama launch
+
+Ini non-fatal dan tidak mempengaruhi fungsi app. Terjadi jika belum ada
+release assets di GitHub Releases. App tetap berjalan normal.
 
 ## License
 

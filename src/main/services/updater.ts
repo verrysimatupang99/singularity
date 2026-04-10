@@ -24,19 +24,19 @@ export function setupAutoUpdater(mainWindow: BrowserWindow): void {
   autoUpdater.allowDowngrade = false
 
   autoUpdater.on('update-available', () => {
-    mainWindow.webContents.send('updater:update-available', true)
+    BrowserWindow.getAllWindows()[0]?.webContents.send('updater:update-available', true)
   })
   autoUpdater.on('update-downloaded', () => {
-    mainWindow.webContents.send('updater:update-downloaded', true)
+    BrowserWindow.getAllWindows()[0]?.webContents.send('updater:update-downloaded', true)
   })
   autoUpdater.on('download-progress', (p) => {
-    mainWindow.webContents.send('updater:download-progress', { percent: p.percent })
+    BrowserWindow.getAllWindows()[0]?.webContents.send('updater:download-progress', { percent: p.percent })
   })
   autoUpdater.on('error', (err) => {
     // Silently log — do NOT crash the app for update failures
     // Common causes: no release assets, no internet, HTTP 406 (no assets uploaded yet)
     console.warn('[updater] Update check failed (non-fatal):', err.message)
-    mainWindow.webContents.send('updater:error', { message: err.message })
+    BrowserWindow.getAllWindows()[0]?.webContents.send('updater:error', { message: err.message })
   })
 
   if (!isUpdateCheckSafe()) {

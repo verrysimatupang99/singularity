@@ -78,12 +78,17 @@ export class PluginLoader {
         for (const toolDef of manifest.tools) {
           const handlerPath = join(dir, entry, toolDef.handler)
           if (existsSync(handlerPath)) {
-            const mod = await import(handlerPath)
-            const fn = mod[toolDef.handlerExport]
-            if (typeof fn === 'function') {
-              const prefixedName = `${manifest.name}_${toolDef.name}`
-              handlerMap.set(prefixedName, fn)
-              this.handlers.set(prefixedName, fn)
+            try {
+              const mod = await import(handlerPath)
+              const fn = mod[toolDef.handlerExport]
+              if (typeof fn === 'function') {
+                const prefixedName = `${manifest.name}_${toolDef.name}`
+                handlerMap.set(prefixedName, fn)
+                this.handlers.set(prefixedName, fn)
+              }
+            } catch (err: unknown) {
+              console.error(`Failed to load plugin handler ${toolDef.handler}:`, err)
+              continue
             }
           }
         }
@@ -178,9 +183,27 @@ export class PluginLoader {
       const { default: extract } = await import('extract-zip')
       await extract(zipPath, { dir: tempDir })
 
+      // Validate extracted paths for path traversal
+      function validateExtractionDir(dir: string): void {
+        const entries = readdirSync(dir, { withFileTypes: true })
+        for (const entry of entries) {
+          const fullPath = join(dir, entry.name)
+          if (fullPath.includes('..')) {
+            throw new Error(`Suspicious path in extracted ZIP: ${fullPath}`)
+          }
+          if (entry.isDirectory()) {
+            validateExtractionDir(fullPath)
+          }
+        }
+      }
+      validateExtractionDir(extractedDir)
+
       // Find extracted directory (may have version suffix)
       const extractedContents = readdirSync(tempDir).filter(n => n !== 'plugin.zip')
       const extractedDir = extractedContents.length === 1 ? join(tempDir, extractedContents[0]) : tempDir
+
+      // Validate extraction directory before installing
+      validateExtractionDir(extractedDir)
 
       // Install
       const result = await this.installPlugin(extractedDir)
