@@ -313,6 +313,28 @@ declare global {
       agentExecuteTask: (opts: { task: string; workspaceRoot: string; provider: string; model: string }) => Promise<{ agentId: string }>
       agentApprove: (opts: { agentId: string; approved: boolean }) => Promise<{ ok: boolean }>
       onAgentEvent: (cb: (event: unknown) => void) => () => void
+
+      // Token Optimizer (Phase 6 - TASK 2)
+      optimizerCompress: (opts: { messages: any[]; strategy: string; keepLast?: number; provider?: string; model?: string }) => Promise<any[]>
+      optimizerEstimate: (messages: any[]) => Promise<{ estimatedTokens: number; messageCount: number }>
+
+      // Memory (Phase 6 - TASK 5)
+      memoryGet: () => Promise<any[]>
+      memoryForget: (key: string) => Promise<{ ok: boolean }>
+
+      // Orchestrator (Phase 7 - TASK 1)
+      orchestratorPlan: (opts: { task: string; workspaceRoot: string; provider: string; model: string }) => Promise<any>
+      orchestratorExecute: (opts: { plan: any; workspaceRoot: string; provider: string; model: string }) => Promise<{ orchestratorId: string }>
+      onOrchestratorEvent: (cb: (event: unknown) => void) => () => void
+
+      // Plugin System (Phase 7 - TASK 3)
+      pluginsList: () => Promise<Array<{ name: string; version: string; toolCount: number }>>
+      pluginsInstall: (dir: string) => Promise<{ success: boolean; name?: string; error?: string }>
+      pluginsUnload: (name: string) => Promise<{ ok: boolean }>
+
+      // Computer Use (Phase 7 - TASK 4)
+      cuScreenshot: () => Promise<{ success: boolean; screenshot?: string; error?: string }>
+      cuAction: (action: { type: string; x?: number; y?: number; text?: string; key?: string }) => Promise<{ success: boolean; screenshot?: string; error?: string }>
     }
     platform: string
   }

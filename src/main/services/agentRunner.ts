@@ -14,17 +14,20 @@ function waitForApproval(agentId: string): Promise<boolean> {
   return new Promise((resolve) => approvalResolvers.set(agentId, resolve))
 }
 
-function buildPrompt(ws: string): string {
+function buildPrompt(ws: string, memories: any[] = []): string {
   const t = BUILT_IN_TOOLS.map(x => `- ${x.name}(${JSON.stringify(x.parameters)}): ${x.description}${x.requiresApproval?' [NEEDS APPROVAL]':''}`).join('\n')
-  return `You are a coding agent. Workspace: ${ws}\nTools: ${t}\nCall tools with: <tool>{"tool":"name","args":{}}</tool>\nAfter ALL tool calls, respond with a brief summary.`
+  const memSection = memories.length > 0 ? `\n\nRelevant memories from previous sessions:\n${memories.map(m => `- [${m.key}]: ${m.value}`).join('\n')}` : ''
+  return `You are a coding agent. Workspace: ${ws}${memSection}\nTools: ${t}\nCall tools with: <tool>{"tool":"name","args":{}}</tool>\nAfter ALL tool calls, respond with a brief summary.`
 }
 
 export async function runAgentLoop({ agentId, task, workspaceRoot, provider, model, onEvent }: AgentRunnerOptions): Promise<void> {
   const apiKey = getApiKey(provider)
   if (!apiKey) { onEvent({ agentId, step: 0, type: 'error', error: `No API key for ${provider}` }); return }
 
+  const { agentMemory } = await import('./agentMemory.js')
+  const memories = agentMemory.recall(task)
   const messages: ChatMessage[] = [
-    { role: 'system', content: buildPrompt(workspaceRoot), timestamp: Date.now() },
+    { role: 'system', content: buildPrompt(workspaceRoot, memories), timestamp: Date.now() },
     { role: 'user', content: task, timestamp: Date.now() },
   ]
 

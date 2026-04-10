@@ -144,3 +144,48 @@ export interface AgentEvent {
   finalResponse?: string
   error?: string
 }
+
+// ---------------------------------------------------------------------------
+// Orchestrator (Phase 7 - TASK 1)
+// ---------------------------------------------------------------------------
+
+export interface SubAgentSpec {
+  id: string
+  role: string
+  task: string
+  tools: string[]
+  priority: 'high' | 'normal' | 'low'
+  dependsOn?: string[]
+}
+
+export interface SubAgentResult {
+  id: string
+  role: string
+  status: 'pending' | 'running' | 'done' | 'error' | 'skipped'
+  output: string
+  filesModified: string[]
+  error?: string
+  durationMs: number
+  tokenUsage?: { input: number; output: number }
+}
+
+export interface OrchestratorPlan {
+  orchestratorId: string
+  task: string
+  subAgents: SubAgentSpec[]
+  strategy: 'parallel' | 'sequential' | 'dag'
+  estimatedTokens: number
+}
+
+export type OrchestratorEventType = 'plan' | 'subagent_start' | 'subagent_done' | 'subagent_error' | 'subagent_skipped' | 'done' | 'error'
+
+export interface OrchestratorEvent {
+  orchestratorId: string
+  type: OrchestratorEventType
+  subAgentId?: string
+  subAgent?: SubAgentSpec
+  result?: SubAgentResult
+  plan?: OrchestratorPlan
+  error?: string
+  summary?: string
+}

@@ -13,6 +13,7 @@ import EditorTabBar from './components/EditorTabBar'
 import CodeEditor from './components/CodeEditor'
 import TerminalPanel from './components/TerminalPanel'
 import AgentView from './components/AgentView'
+import OrchestratorView from './components/OrchestratorView'
 
 type View = 'chat' | 'settings'
 
@@ -442,6 +443,16 @@ export default function App() {
                 <AgentView workspaceRoot={workspaceRoot} />
               </div>
               <ResizableDivider direction="vertical" onResize={(d) => setPanelWidth('agent', panels.agent.width + d)} />
+            </>
+          )}
+
+          {/* Orchestrator Panel */}
+          {panels.orchestrator.open && (
+            <>
+              <div style={{ width: panels.orchestrator.width, flexShrink: 0, overflow: 'hidden', borderRight: '1px solid #21262d' }}>
+                <OrchestratorView />
+              </div>
+              <ResizableDivider direction="vertical" onResize={(d) => setPanelWidth('orchestrator', panels.orchestrator.width + d)} />
             </>
           )}
 

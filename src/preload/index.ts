@@ -201,6 +201,42 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.on('agent:event', listener)
     return () => ipcRenderer.removeListener('agent:event', listener)
   },
+
+  // Token Optimizer (Phase 6 - TASK 2)
+  optimizerCompress: (opts: { messages: any[]; strategy: string; keepLast?: number; provider?: string; model?: string }) =>
+    ipcRenderer.invoke('optimizer:compress', opts),
+  optimizerEstimate: (messages: any[]) =>
+    ipcRenderer.invoke('optimizer:estimate', messages),
+
+  // Memory (Phase 6 - TASK 5)
+  memoryGet: () => ipcRenderer.invoke('memory:get'),
+  memoryForget: (key: string) => ipcRenderer.invoke('memory:forget', key),
+
+  // Orchestrator (Phase 7 - TASK 1)
+  orchestratorPlan: (opts: { task: string; workspaceRoot: string; provider: string; model: string }) =>
+    ipcRenderer.invoke('orchestrator:plan', opts),
+  orchestratorExecute: (opts: { plan: any; workspaceRoot: string; provider: string; model: string }) =>
+    ipcRenderer.invoke('orchestrator:execute', opts),
+  onOrchestratorEvent: (cb: (event: unknown) => void) => {
+    const listener = (_event: unknown, data: unknown) => cb(data)
+    ipcRenderer.on('orchestrator:event', listener)
+    ipcRenderer.on('orchestrator:done', listener)
+    ipcRenderer.on('orchestrator:error', listener)
+    return () => {
+      ipcRenderer.removeListener('orchestrator:event', listener)
+      ipcRenderer.removeListener('orchestrator:done', listener)
+      ipcRenderer.removeListener('orchestrator:error', listener)
+    }
+  },
+
+  // Plugin System (Phase 7 - TASK 3)
+  pluginsList: () => ipcRenderer.invoke('plugins:list'),
+  pluginsInstall: (dir: string) => ipcRenderer.invoke('plugins:install', dir),
+  pluginsUnload: (name: string) => ipcRenderer.invoke('plugins:unload', name),
+
+  // Computer Use (Phase 7 - TASK 4)
+  cuScreenshot: () => ipcRenderer.invoke('cu:screenshot'),
+  cuAction: (action: unknown) => ipcRenderer.invoke('cu:action', action),
 })
 
 contextBridge.exposeInMainWorld('platform', process.platform)

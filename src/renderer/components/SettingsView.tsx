@@ -66,6 +66,10 @@ export default function SettingsView({
   const [mcpLoading, setMcpLoading] = useState<Set<string>>(new Set())
   const [expandedMcpServer, setExpandedMcpServer] = useState<string | null>(null)
 
+  // Plugin state
+  const [installedPlugins, setInstalledPlugins] = useState<Array<{ name: string; version: string; toolCount: number }>>([])
+  const [pluginFeedback, setPluginFeedback] = useState<string | null>(null)
+
   // OAuth state
   const [githubAuthStatus, setGithubAuthStatus] = useState<'idle' | 'pending' | 'complete' | 'error'>('idle')
   const [githubUserCode, setGithubUserCode] = useState('')
@@ -88,7 +92,45 @@ export default function SettingsView({
   useEffect(() => {
     loadMcpServers()
     checkSecureMode()
+    loadPlugins()
   }, [])
+
+  const loadPlugins = useCallback(async () => {
+    try {
+      const list = await window.api.pluginsList()
+      setInstalledPlugins(list)
+    } catch (err) {
+      console.error('Failed to load plugins:', err)
+    }
+  }, [])
+
+  const handleInstallPlugin = useCallback(async () => {
+    const pluginDir = await window.api.fsPickFolder()
+    if (!pluginDir) return
+    try {
+      const result = await window.api.pluginsInstall(pluginDir)
+      if (result.success) {
+        setPluginFeedback(`Plugin "${result.name}" installed successfully`)
+        await loadPlugins()
+      } else {
+        setPluginFeedback(`Failed to install plugin: ${result.error}`)
+      }
+    } catch (err) {
+      setPluginFeedback(`Failed to install plugin: ${err instanceof Error ? err.message : String(err)}`)
+    }
+    setTimeout(() => setPluginFeedback(null), 3000)
+  }, [loadPlugins])
+
+  const handleUnloadPlugin = useCallback(async (name: string) => {
+    try {
+      await window.api.pluginsUnload(name)
+      setPluginFeedback(`Plugin "${name}" unloaded`)
+      await loadPlugins()
+    } catch (err) {
+      setPluginFeedback(`Failed to unload plugin: ${err instanceof Error ? err.message : String(err)}`)
+    }
+    setTimeout(() => setPluginFeedback(null), 3000)
+  }, [loadPlugins])
 
   const checkSecureMode = useCallback(async () => {
     try {
@@ -1146,6 +1188,111 @@ export default function SettingsView({
             </div>
           )
         })}
+      </Section>
+
+      {/* Plugins */}
+      <Section title="Plugins">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <div style={{ fontSize: '0.85rem', color: '#8b949e' }}>
+            Manage community plugins that extend agent capabilities with custom tools.
+          </div>
+          <button
+            onClick={handleInstallPlugin}
+            style={{
+              backgroundColor: '#238636',
+              border: '1px solid #2ea043',
+              color: '#fff',
+              padding: '6px 14px',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '0.8rem',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            + Install Plugin
+          </button>
+        </div>
+
+        {pluginFeedback && (
+          <div
+            style={{
+              padding: '10px 16px',
+              marginBottom: '16px',
+              borderRadius: '8px',
+              backgroundColor: pluginFeedback.includes('Failed') || pluginFeedback.includes('error') || pluginFeedback.includes('Error')
+                ? 'rgba(248, 81, 73, 0.15)'
+                : 'rgba(63, 185, 80, 0.15)',
+              border: `1px solid ${pluginFeedback.includes('Failed') || pluginFeedback.includes('error') || pluginFeedback.includes('Error') ? 'rgba(248, 81, 73, 0.3)' : 'rgba(63, 185, 80, 0.3)'}`,
+              color: pluginFeedback.includes('Failed') || pluginFeedback.includes('error') || pluginFeedback.includes('Error') ? '#f85149' : '#3fb950',
+              fontSize: '0.85rem',
+            }}
+          >
+            {pluginFeedback}
+          </div>
+        )}
+
+        {installedPlugins.length === 0 && (
+          <div
+            style={{
+              backgroundColor: '#161b22',
+              border: '1px solid #30363d',
+              borderRadius: '10px',
+              padding: '24px',
+              textAlign: 'center',
+              color: '#484f58',
+              fontSize: '0.85rem',
+            }}
+          >
+            No plugins installed. Click &quot;+ Install Plugin&quot; to select a plugin directory.
+          </div>
+        )}
+
+        {installedPlugins.map((plugin) => (
+          <div
+            key={plugin.name}
+            style={{
+              backgroundColor: '#161b22',
+              border: '1px solid #30363d',
+              borderRadius: '10px',
+              padding: '16px 20px',
+              marginBottom: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '16px',
+            }}
+          >
+            <div
+              style={{
+                width: 10,
+                height: 10,
+                borderRadius: '50%',
+                backgroundColor: '#3fb950',
+                boxShadow: '0 0 6px #3fb950',
+                flexShrink: 0,
+              }}
+            />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 600, fontSize: '0.95rem', color: '#58a6ff' }}>{plugin.name}</div>
+              <div style={{ fontSize: '0.8rem', color: '#484f58', marginTop: '2px' }}>
+                v{plugin.version} &middot; {plugin.toolCount} tool{plugin.toolCount !== 1 ? 's' : ''}
+              </div>
+            </div>
+            <button
+              onClick={() => handleUnloadPlugin(plugin.name)}
+              style={{
+                backgroundColor: 'rgba(248, 81, 73, 0.15)',
+                border: '1px solid rgba(248, 81, 73, 0.3)',
+                color: '#f85149',
+                padding: '4px 10px',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '0.75rem',
+              }}
+            >
+              Unload
+            </button>
+          </div>
+        ))}
       </Section>
 
       {/* General */}

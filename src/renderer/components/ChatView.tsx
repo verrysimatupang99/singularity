@@ -16,6 +16,7 @@ interface ChatViewProps {
   initialMessage?: string
   onMessageSent?: () => void
   contextWindow?: number
+  onCompress?: (strategy: string) => void
 }
 
 export default function ChatView({
@@ -31,6 +32,7 @@ export default function ChatView({
   initialMessage,
   onMessageSent,
   contextWindow,
+  onCompress,
 }: ChatViewProps) {
   const [input, setInput] = useState('')
   const [attachments, setAttachments] = useState<Attachment[]>([])
@@ -171,6 +173,10 @@ export default function ChatView({
     }
     displayMessages.push(streamingMsg)
   }
+
+  // Calculate context usage
+  const totalTokens = messages.reduce((sum, msg) => sum + (msg.tokenUsage?.totalTokens ?? 0), 0)
+  const contextPct = contextWindow && contextWindow > 0 ? totalTokens / contextWindow : 0
 
   return (
     <div
@@ -326,6 +332,14 @@ export default function ChatView({
 
       {/* Context Meter */}
       {contextWindow && <ContextMeter messages={messages} contextWindow={contextWindow} modelName="" />}
+
+      {/* Compress Banner */}
+      {contextWindow && contextWindow > 0 && contextPct > 0.8 && (
+        <div style={{ padding: '6px 12px', backgroundColor: 'rgba(210,153,34,0.15)', borderBottom: '1px solid #21262d', fontSize: 12, color: '#d29922', display: 'flex', gap: 8, alignItems: 'center' }}>
+          Context {Math.round(contextPct * 100)}% full
+          <button onClick={() => onCompress?.('truncate')} style={{ padding: '2px 8px', backgroundColor: '#238636', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 11 }}>Compress (Smart Truncate)</button>
+        </div>
+      )}
 
       {/* Messages */}
       <div

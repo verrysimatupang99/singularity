@@ -23,6 +23,9 @@ import { McpManager } from './services/mcpManager.js'
 import { initProviders, registry } from './providers/index.js'
 import { applyUnifiedDiff, countDiffLines, parseDiffHunks, generateUnifiedDiff } from './utils/diff.js'
 import { runAgentLoop, approveAgent } from './services/agentRunner.js'
+import { OrchestratorAgent } from './services/orchestrator.js'
+import { tokenOptimizer } from './services/tokenOptimizer.js'
+import { agentMemory } from './services/agentMemory.js'
 import {
   githubDeviceAuth,
   githubPoll,
@@ -33,6 +36,8 @@ import {
   initiateGitHubDeviceFlow,
   pollGitHubDeviceToken,
 } from './services/oauthService.js'
+import { pluginLoader } from './services/pluginLoader.js'
+import { computerUseController } from './services/computerUse.js'
 
 // Fix GPU issues on Linux
 app.commandLine.appendSwitch('no-sandbox')
@@ -1184,6 +1189,31 @@ ipcMain.handle('terminal:kill', (_event, termId: string) => {
 })
 
 // ---------------------------------------------------------------------------
+// Token Optimizer & Memory (Phase 6 - TASK 2 & TASK 5)
+// ---------------------------------------------------------------------------
+
+ipcMain.handle('optimizer:compress', async (_event, { messages, strategy, keepLast, provider, model }: {
+  messages: any[]
+  strategy: string
+  keepLast?: number
+  provider?: string
+  model?: string
+}) => {
+  if (strategy === 'rolling') return await tokenOptimizer.rollingSummary(messages, keepLast, provider, model)
+  if (strategy === 'truncate') return tokenOptimizer.truncateToFit(messages, 50000)
+  if (strategy === 'deduplicate') return tokenOptimizer.deduplicateFileAttachments(messages)
+  return messages
+})
+
+ipcMain.handle('optimizer:estimate', (_event, messages: any[]) => {
+  const chars = messages.reduce((sum, m) => sum + (m.content?.length || 0), 0)
+  return { estimatedTokens: Math.ceil(chars / 4), messageCount: messages.length }
+})
+
+ipcMain.handle('memory:get', () => agentMemory.getAll())
+ipcMain.handle('memory:forget', (_event, key: string) => { agentMemory.forget(key); return { ok: true } })
+
+// ---------------------------------------------------------------------------
 // Agent (Phase 6 - TASK 3)
 // ---------------------------------------------------------------------------
 
@@ -1201,11 +1231,61 @@ ipcMain.handle('agent:approve', (_event, { agentId, approved }: { agentId: strin
 })
 
 // ---------------------------------------------------------------------------
+// Orchestrator (Phase 7 - TASK 1)
+// ---------------------------------------------------------------------------
+
+const activeOrchestrators = new Map<string, OrchestratorAgent>()
+
+ipcMain.handle('orchestrator:plan', async (_event, { task, workspaceRoot, provider, model }: { task: string; workspaceRoot: string; provider: string; model: string }) => {
+  const orchId = `orch_${Date.now()}`
+  const orch = new OrchestratorAgent({ orchestratorId: orchId, task, workspaceRoot, provider, model, onEvent: () => {} })
+  const plan = await orch.plan(task)
+  activeOrchestrators.set(orchId, orch)
+  return plan
+})
+
+ipcMain.handle('orchestrator:execute', async (_event, { plan, workspaceRoot, provider, model }: { plan: any; workspaceRoot: string; provider: string; model: string }) => {
+  const orchId = plan.orchestratorId
+  const existing = activeOrchestrators.get(orchId)
+  const orch = existing || new OrchestratorAgent({ orchestratorId: orchId, task: plan.task, workspaceRoot, provider, model, onEvent: (e) => mainWindow?.webContents.send('orchestrator:event', e) })
+  if (!existing) activeOrchestrators.set(orchId, orch)
+  ;(async () => {
+    try {
+      await orch.execute(plan)
+      mainWindow?.webContents.send('orchestrator:done', { orchestratorId: orchId })
+    } catch (err: any) {
+      mainWindow?.webContents.send('orchestrator:error', { orchestratorId: orchId, error: err.message })
+    }
+  })()
+  return { orchestratorId: orchId }
+})
+
+// ---------------------------------------------------------------------------
+// Plugin System (Phase 7 - TASK 3)
+// ---------------------------------------------------------------------------
+
+ipcMain.handle('plugins:list', () => pluginLoader.getLoadedPlugins().map(p => ({ name: p.name, version: p.version, toolCount: p.tools.length })))
+ipcMain.handle('plugins:install', async (_event, pluginDir: string) => pluginLoader.installPlugin(pluginDir))
+ipcMain.handle('plugins:unload', (_event, name: string) => { pluginLoader.unloadPlugin(name); return { ok: true } })
+
+// ---------------------------------------------------------------------------
+// Computer Use (Phase 7 - TASK 4)
+// ---------------------------------------------------------------------------
+
+ipcMain.handle('cu:screenshot', async () => computerUseController.screenshot())
+ipcMain.handle('cu:action', async (_event, action: any) => {
+  if (action.type === 'screenshot') return computerUseController.screenshot()
+  return { success: false, error: `Action '${action.type}' not yet implemented (planned Phase 8)` }
+})
+
+// ---------------------------------------------------------------------------
 // App lifecycle
 // ---------------------------------------------------------------------------
 
 app.whenReady().then(async () => {
   initProviders({})
+  // Load plugins on startup
+  try { await pluginLoader.loadFromDir(pluginLoader['pluginDir']) } catch {}
   createWindow()
 })
 
