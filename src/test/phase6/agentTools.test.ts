@@ -3,8 +3,8 @@ import { BUILT_IN_TOOLS, executeTool } from '../../main/services/agentTools.js'
 
 describe('Agent Tools', () => {
   describe('BUILT_IN_TOOLS', () => {
-    it('should have 13 tools', () => {
-      expect(BUILT_IN_TOOLS.length).toBe(13)
+    it('should have 10 tools (CUA tools removed in cleanup)', () => {
+      expect(BUILT_IN_TOOLS.length).toBe(10)
     })
 
     it('should have correct tool names', () => {

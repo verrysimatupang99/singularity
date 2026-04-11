@@ -421,8 +421,8 @@ export class GeminiProvider implements AIProvider {
   }
 
   /**
-   * Fetch with exponential backoff retry for 429 errors.
-   * Other errors are not retried here — they are handled after the response.
+   * Fetch with exponential backoff retry.
+   * Retries on both network errors AND HTTP 429/500/503.
    */
   private async fetchWithRetry(
     url: string,
@@ -430,7 +430,20 @@ export class GeminiProvider implements AIProvider {
     retries = 0,
   ): Promise<Response> {
     try {
-      return await fetch(url, init)
+      const response = await fetch(url, init)
+
+      // Retry on rate limit or server error
+      if ((response.status === 429 || response.status === 500 || response.status === 503) && retries < GeminiProvider.MAX_RETRIES) {
+        const retryAfter = parseInt(response.headers.get('retry-after') || '0', 10)
+        const delay = retryAfter > 0
+          ? Math.min(retryAfter * 1000, 30000)
+          : Math.pow(2, retries) * 1000
+        try { await response.body?.cancel() } catch {}
+        await new Promise((resolve) => setTimeout(resolve, delay))
+        return this.fetchWithRetry(url, init, retries + 1)
+      }
+
+      return response
     } catch (err) {
       if (retries >= GeminiProvider.MAX_RETRIES) {
         throw new NetworkError(`Network error after ${retries} retries: ${err instanceof Error ? err.message : String(err)}`)
@@ -452,15 +465,11 @@ export class GeminiProvider implements AIProvider {
     }
 
     if (status === 429) {
-      // Rate limited — will be retried by fetchWithRetry
-      const retryAfter = parseInt(response.headers.get('retry-after') || '1', 10)
-      const delay = Math.min(retryAfter * 1000, 4000)
-      await new Promise((resolve) => setTimeout(resolve, delay))
-      return new ProviderError('Gemini rate limited. Retrying...')
+      return new ProviderError('Gemini rate limit exceeded. Please wait and try again.')
     }
 
     if (status === 500 || status === 503) {
-      return new ProviderError('Gemini service is unavailable. Please try again.')
+      return new ProviderError('Gemini service error after retries. Please try again later.')
     }
 
     let message = `Gemini API error (${status})`

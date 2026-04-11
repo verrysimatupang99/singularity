@@ -9,7 +9,6 @@ export interface PanelState {
   terminal: { open: boolean; height: number }
   agent: { open: boolean; width: number }
   orchestrator: { open: boolean; width: number }
-  computerUse: { open: boolean; width: number }
   memoryBrowser: { open: boolean; width: number }
   tokenDashboard: { open: boolean; width: number }
 }
@@ -23,7 +22,6 @@ const DEFAULT_PANELS: PanelState = {
   terminal: { open: false, height: 240 },
   agent: { open: false, width: 420 },
   orchestrator: { open: false, width: 420 },
-  computerUse: { open: false, width: 420 },
   memoryBrowser: { open: false, width: 420 },
   tokenDashboard: { open: false, width: 420 },
 }
@@ -51,22 +49,29 @@ type LayoutAction =
 
 function layoutReducer(state: LayoutState, action: LayoutAction): LayoutState {
   switch (action.type) {
-    case 'TOGGLE_PANEL':
+    case 'TOGGLE_PANEL': {
+      const existing = state.panels[action.panel as keyof typeof state.panels]
+      if (!existing) return state // Ignore invalid panel keys (e.g. 'settings' which is a view, not a panel)
       return {
         ...state,
         panels: {
           ...state.panels,
-          [action.panel]: { ...state.panels[action.panel], open: !state.panels[action.panel].open },
+          [action.panel]: { ...existing, open: !existing.open },
         },
       }
-    case 'SET_PANEL_WIDTH':
+    }
+    case 'SET_PANEL_WIDTH': {
+      const panel = action.panel as keyof typeof state.panels
+      const existing = state.panels[panel]
+      if (!existing || !('width' in existing)) return state
       return {
         ...state,
         panels: {
           ...state.panels,
-          [action.panel]: { ...state.panels[action.panel], width: action.width },
+          [panel]: { ...existing, width: action.width },
         },
       }
+    }
     case 'SET_TERMINAL_HEIGHT':
       return {
         ...state,

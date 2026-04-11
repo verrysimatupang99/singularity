@@ -237,12 +237,24 @@ export class AnthropicProvider implements AIProvider {
     retries = 0,
   ): Promise<Response> {
     try {
-      return await fetch(url, init)
+      const response = await fetch(url, init)
+
+      // Retry on rate limit or server error
+      if ((response.status === 429 || response.status === 500 || response.status === 503 || response.status === 529) && retries < AnthropicProvider.MAX_RETRIES) {
+        const retryAfter = parseInt(response.headers.get('retry-after') || '0', 10)
+        const delay = retryAfter > 0
+          ? Math.min(retryAfter * 1000, 30000)
+          : Math.pow(2, retries) * 1000
+        try { await response.body?.cancel() } catch {}
+        await new Promise((resolve) => setTimeout(resolve, delay))
+        return this.fetchWithRetry(url, init, retries + 1)
+      }
+
+      return response
     } catch (err) {
       if (retries >= AnthropicProvider.MAX_RETRIES) {
         throw new NetworkError(`Network error after ${retries} retries: ${err instanceof Error ? err.message : String(err)}`)
       }
-      // Exponential backoff: 1s, 2s, 4s
       const delay = Math.pow(2, retries) * 1000
       await new Promise((resolve) => setTimeout(resolve, delay))
       return this.fetchWithRetry(url, init, retries + 1)
@@ -257,15 +269,11 @@ export class AnthropicProvider implements AIProvider {
     }
 
     if (status === 429) {
-      // Retry with exponential backoff
-      const retryAfter = parseInt(response.headers.get('retry-after') || '1', 10)
-      const delay = Math.min(retryAfter * 1000, 4000)
-      await new Promise((resolve) => setTimeout(resolve, delay))
-      return new ProviderError('Anthropic rate limited. Retrying...')
+      return new ProviderError('Anthropic rate limit exceeded. Please wait and try again.')
     }
 
     if (status === 500 || status === 503 || status === 529) {
-      return new ProviderError('Anthropic service is overloaded. Please try again.')
+      return new ProviderError('Anthropic service error after retries. Please try again later.')
     }
 
     let message = `Anthropic API error (${status})`

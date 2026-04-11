@@ -11,9 +11,6 @@ export const BUILT_IN_TOOLS: AgentTool[] = [
   { name: 'forget', description: 'Delete a memory entry', parameters: { type: 'object', properties: { key: { type: 'string' } }, required: ['key'] }, requiresApproval: true },
   { name: 'take_screenshot', description: 'Capture screenshot of the current Singularity window', parameters: { type: 'object', properties: {}, required: [] }, requiresApproval: false },
   { name: 'mcp_call', description: 'Call a tool on a running MCP server', parameters: { type: 'object', properties: { server: { type: 'string', description: 'MCP server name' }, tool: { type: 'string', description: 'Tool name' }, args: { type: 'object', description: 'Tool arguments' } }, required: ['server', 'tool'] }, requiresApproval: true },
-  { name: 'cua_click', description: 'Click at screen coordinates', parameters: { type: 'object', properties: { x: { type: 'number' }, y: { type: 'number' } }, required: ['x', 'y'] }, requiresApproval: true },
-  { name: 'cua_type', description: 'Type text using keyboard', parameters: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] }, requiresApproval: true },
-  { name: 'cua_key', description: 'Press a keyboard key', parameters: { type: 'object', properties: { key: { type: 'string', description: 'Enter, Escape, Tab, ArrowUp, etc.' } }, required: ['key'] }, requiresApproval: true },
 ]
 
 export async function executeTool(tc: { toolName: string; args: Record<string, unknown> }, ws: string): Promise<{ output: string; error?: string }> {
@@ -63,30 +60,13 @@ export async function executeTool(tc: { toolName: string; args: Record<string, u
         return { output: `Memory deleted: ${tc.args.key}` }
       }
       case 'take_screenshot': {
-        const { computerUseController } = await import('./computerUse.js')
-        const result = await computerUseController.screenshot()
-        return result.success ? { output: `Screenshot captured (base64 PNG, ${Math.ceil((result.screenshot?.length || 0) * 0.75 / 1024)}KB)` } : { output: '', error: result.error }
+        return { output: '', error: 'Screenshot not available (Computer Use feature is deferred). Use file reading to inspect code instead.' }
       }
       case 'mcp_call': {
         const { getMcpManager } = await import('./mcpManager.js')
         const mgr = getMcpManager()
         const result = await mgr.callTool(tc.args.server as string, tc.args.tool as string, (tc.args.args as Record<string, unknown>) || {})
         return { output: typeof result === 'string' ? result : JSON.stringify(result, null, 2) }
-      }
-      case 'cua_click': {
-        const { ComputerUseController } = await import('./computerUse.js')
-        const result = await new ComputerUseController().click(tc.args.x as number, tc.args.y as number)
-        return result.success ? { output: `Clicked (${tc.args.x}, ${tc.args.y})` } : { output: '', error: result.error }
-      }
-      case 'cua_type': {
-        const { ComputerUseController } = await import('./computerUse.js')
-        const result = await new ComputerUseController().type(tc.args.text as string)
-        return result.success ? { output: `Typed: "${(tc.args.text as string).slice(0, 50)}"` } : { output: '', error: result.error }
-      }
-      case 'cua_key': {
-        const { ComputerUseController } = await import('./computerUse.js')
-        const result = await new ComputerUseController().pressKey(tc.args.key as string)
-        return result.success ? { output: `Pressed key: ${tc.args.key}` } : { output: '', error: result.error }
       }
       default: {
         const { pluginLoader } = await import('./pluginLoader.js')

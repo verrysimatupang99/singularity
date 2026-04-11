@@ -201,23 +201,26 @@ export abstract class OpenAICompatibleProvider implements AIProvider {
       return new AuthError(`Invalid ${this.name} API key. Check your key in Settings.`)
     }
 
-    if (status === 429 || status === 500 || status === 503) {
-      const retryAfter = parseInt(response.headers.get('retry-after') || '1', 10)
-      const delay = Math.min(retryAfter * 1000, 4000)
-      await new Promise((resolve) => setTimeout(resolve, delay))
-      return new ProviderError(`${this.name} rate limited or overloaded. Retrying...`)
+    if (status === 403) {
+      return new AuthError(`${this.name} access forbidden. Check your API key permissions.`)
+    }
+
+    // 429/500/503 are now retried by fetchWithRetry, so if we get here
+    // after all retries exhausted, provide a clear error message
+    if (status === 429) {
+      return new ProviderError(`${this.name} rate limit exceeded. Please wait and try again.`)
+    }
+
+    if (status === 500 || status === 503) {
+      return new ProviderError(`${this.name} server error (${status}). The provider may be temporarily unavailable.`)
     }
 
     let message = `${this.name} API error (${status})`
     try {
       const body = await response.json() as Record<string, unknown>
       const err = body.error as Record<string, unknown> | undefined
-      if (err?.message) {
-        message += `: ${err.message}`
-      }
-    } catch {
-      // Use default message
-    }
+      if (err?.message) message += `: ${err.message}`
+    } catch { /* Use default message */ }
     return new ProviderError(message)
   }
 
@@ -232,13 +235,33 @@ export abstract class OpenAICompatibleProvider implements AIProvider {
     }))
   }
 
+  /**
+   * Retryable fetch with exponential backoff.
+   * Retries on both network errors AND HTTP 429/500/503.
+   */
   private async fetchWithRetry(
     url: string,
     init: RequestInit,
     retries = 0,
   ): Promise<Response> {
     try {
-      return await fetch(url, init)
+      const response = await fetch(url, init)
+
+      // Check if we should retry (rate limit or server error)
+      if ((response.status === 429 || response.status === 500 || response.status === 503) && retries < OpenAICompatibleProvider.MAX_RETRIES) {
+        const retryAfter = parseInt(response.headers.get('retry-after') || '0', 10)
+        const delay = retryAfter > 0
+          ? Math.min(retryAfter * 1000, 30000)
+          : Math.pow(2, retries) * 1000
+
+        // Consume the body before retrying
+        try { await response.body?.cancel() } catch {}
+
+        await new Promise((resolve) => setTimeout(resolve, delay))
+        return this.fetchWithRetry(url, init, retries + 1)
+      }
+
+      return response
     } catch (err) {
       if (retries >= OpenAICompatibleProvider.MAX_RETRIES) {
         throw new NetworkError(`Network error after ${retries} retries: ${err instanceof Error ? err.message : String(err)}`)

@@ -22,17 +22,8 @@ describe('MCP Integration', () => {
     expect(mcpTool?.parameters).toHaveProperty('properties.tool')
   })
 
-  it('CUA tools require approval', async () => {
+  it('total tool count (10 after CUA removal)', async () => {
     const { BUILT_IN_TOOLS } = await import('../../main/services/agentTools.js')
-    for (const name of ['cua_click', 'cua_type', 'cua_key']) {
-      const tool = BUILT_IN_TOOLS.find(t => t.name === name)
-      expect(tool).toBeDefined()
-      expect(tool?.requiresApproval).toBe(true)
-    }
-  })
-
-  it('total tool count', async () => {
-    const { BUILT_IN_TOOLS } = await import('../../main/services/agentTools.js')
-    expect(BUILT_IN_TOOLS.length).toBeGreaterThanOrEqual(13)
+    expect(BUILT_IN_TOOLS.length).toBeGreaterThanOrEqual(10)
   })
 })

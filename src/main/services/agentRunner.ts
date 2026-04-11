@@ -1,8 +1,8 @@
-import type { AgentEvent, ChatMessage } from '../providers/types.js'
+import type { AgentEvent } from '../providers/types.js'
 import { BUILT_IN_TOOLS, executeTool } from './agentTools.js'
 import { getApiKey } from './storage.js'
 import { getMcpManager } from './mcpManager.js'
-import OpenAI from 'openai'
+import { agentChat, AgentChatMessage } from './agentChatService.js'
 
 export interface AgentRunnerOptions {
   agentId: string; task: string; workspaceRoot: string; provider: string; model: string
@@ -16,8 +16,13 @@ function waitForApproval(agentId: string): Promise<boolean> {
   return new Promise((resolve) => approvalResolvers.set(agentId, resolve))
 }
 
-function buildPrompt(ws: string, memories: any[] = []): string {
-  const t = BUILT_IN_TOOLS.map(x => `- ${x.name}(${JSON.stringify(x.parameters)}): ${x.description}${x.requiresApproval?' [NEEDS APPROVAL]':''}`).join('\n')
+/**
+ * Build the system prompt with available tools + MCP tools + memory.
+ */
+function buildSystemPrompt(ws: string, memories: Array<{ key: string; value: string }> = []): string {
+  const toolList = BUILT_IN_TOOLS.map(x =>
+    `- **${x.name}**: ${x.description}${x.requiresApproval ? ' (requires approval)' : ''}`
+  ).join('\n')
 
   // Inject running MCP tools
   let mcpSection = ''
@@ -28,78 +33,84 @@ function buildPrompt(ws: string, memories: any[] = []): string {
       const mcpTools: string[] = []
       for (const server of runningServers) {
         for (const tool of server.tools || []) {
-          mcpTools.push(`- mcp_call(server="${server.name}", tool="${tool.name}"): ${tool.description || 'MCP tool'}`)
+          mcpTools.push(`- **mcp_call**: Call "${tool.name}" on server "${server.name}": ${tool.description || 'MCP tool'}`)
         }
       }
-      mcpSection = `\n\nMCP Tools (${mcpTools.length} from ${runningServers.length} servers):\n${mcpTools.join('\n')}`
+      mcpSection = `\n\n### MCP Tools (${mcpTools.length} from ${runningServers.length} servers)\n${mcpTools.join('\n')}`
     }
-  } catch {}
+  } catch { /* MCP not available */ }
 
-  const memSection = memories.length > 0 ? `\n\nRelevant memories from previous sessions:\n${memories.map(m => `- [${m.key}]: ${m.value}`).join('\n')}` : ''
-  return `You are a coding agent. Workspace: ${ws}${memSection}${mcpSection}\nTools: ${t}\nCall tools with: <tool>{"tool":"name","args":{}}</tool>\nAfter ALL tool calls, respond with a brief summary.`
+  const memSection = memories.length > 0
+    ? `\n\n### Relevant Memories from Previous Sessions\n${memories.map(m => `- **${m.key}**: ${m.value}`).join('\n')}`
+    : ''
+
+  return `You are a coding agent working in workspace: ${ws}
+${memSection}${mcpSection}
+
+## Available Tools
+${toolList}
+
+## Instructions
+- Use tools when needed to complete the task
+- After tool calls, respond with a brief summary of what happened
+- Read files before editing to understand context
+- Write clean, well-structured code
+- When done, provide a clear summary of changes made`
 }
 
+/**
+ * Run the agent loop: send messages, handle tool calls, repeat until done.
+ */
 export async function runAgentLoop({ agentId, task, workspaceRoot, provider, model, onEvent }: AgentRunnerOptions): Promise<void> {
   const apiKey = getApiKey(provider)
   if (!apiKey) { onEvent({ agentId, step: 0, type: 'error', error: `No API key for ${provider}` }); return }
 
   const { agentMemory } = await import('./agentMemory.js')
   const memories = agentMemory.recall(task)
-  const messages: ChatMessage[] = [
-    { role: 'system', content: buildPrompt(workspaceRoot, memories), timestamp: Date.now() },
-    { role: 'user', content: task, timestamp: Date.now() },
+
+  const messages: AgentChatMessage[] = [
+    { role: 'system', content: buildSystemPrompt(workspaceRoot, memories) },
+    { role: 'user', content: task },
   ]
 
   for (let turn = 1; turn <= 10; turn++) {
     onEvent({ agentId, step: turn, type: 'thinking' })
     try {
-      const res = await callProvider(provider, model, messages, apiKey)
-      onEvent({ agentId, step: turn, type: 'done', finalResponse: res })
-      break
-    } catch (err: unknown) {
-      if (err instanceof Error && err.message?.includes('<tool>')) {
-        const toolCall = parseToolCall(err.message)
-        onEvent({ agentId, step: turn, type: 'tool_call', toolCall })
-        let approved = !toolCall.requiresApproval
-        if (toolCall.requiresApproval) {
-          onEvent({ agentId, step: turn, type: 'approval_needed', toolCall })
-          approved = await waitForApproval(agentId)
-        }
-        const result = approved ? await executeTool(toolCall, workspaceRoot) : { output: '[rejected]', approved: false }
-        onEvent({ agentId, step: turn, type: 'tool_result', toolCall, result: { ...result, toolName: toolCall.toolName, approved } })
-        messages.push({ role: 'assistant', content: JSON.stringify(toolCall), timestamp: Date.now() })
-        if (toolCall.toolName === 'cua_screenshot' && (result as any).screenshot) {
-          messages.push({
-            role: 'user',
-            content: [{ type: 'text', text: `Tool: cua_screenshot\nResult: Screenshot captured` }, { type: 'image', source: { type: 'base64', media_type: 'image/png', data: (result as any).screenshot } }],
-            timestamp: Date.now(),
-          } as any)
-        } else {
-          messages.push({ role: 'user', content: `Tool: ${toolCall.toolName}\nResult: ${result.output}${result.error ? '\nError: '+result.error : ''}`, timestamp: Date.now() })
-        }
-      } else {
-        onEvent({ agentId, step: turn, type: 'error', error: err.message })
+      const { content, toolCalls } = await agentChat(provider, model, messages, BUILT_IN_TOOLS)
+
+      if (toolCalls.length === 0) {
+        // No tool calls — agent is done
+        onEvent({ agentId, step: turn, type: 'done', finalResponse: content })
         break
       }
+
+      // Execute tool calls sequentially
+      for (const tc of toolCalls) {
+        const tool = BUILT_IN_TOOLS.find(t => t.name === tc.toolName)
+        const requiresApproval = tool?.requiresApproval ?? true
+
+        onEvent({ agentId, step: turn, type: 'tool_call', toolCall: { toolName: tc.toolName, args: tc.args, requiresApproval } })
+
+        let approved = !requiresApproval
+        if (requiresApproval) {
+          onEvent({ agentId, step: turn, type: 'approval_needed', toolCall: { toolName: tc.toolName, args: tc.args, requiresApproval } })
+          approved = await waitForApproval(agentId)
+        }
+
+        const result = approved
+          ? await executeTool({ toolName: tc.toolName, args: tc.args }, workspaceRoot)
+          : { output: '[rejected]', approved: false }
+
+        onEvent({ agentId, step: turn, type: 'tool_result', toolCall: { toolName: tc.toolName, args: tc.args, requiresApproval }, result: { ...result, toolName: tc.toolName, approved } })
+
+        // Append tool result to conversation
+        messages.push({ role: 'user', content: `Tool: ${tc.toolName}\nResult: ${result.output}${result.error ? '\nError: ' + result.error : ''}` })
+      }
+
+      // Continue loop for next turn
+    } catch (err: unknown) {
+      onEvent({ agentId, step: turn, type: 'error', error: err instanceof Error ? err.message : String(err) })
+      break
     }
   }
-}
-
-async function callProvider(provider: string, model: string, messages: ChatMessage[], apiKey: string): Promise<string> {
-  if (provider === 'anthropic' || provider === 'openai' || provider === 'openrouter' || provider === 'qwen') {
-    const { default: OpenAI } = await import('openai')
-    const client = new OpenAI({ apiKey, baseURL: provider === 'qwen' ? 'https://dashscope.aliyuncs.com/compatible-mode/v1' : provider === 'openrouter' ? 'https://openrouter.ai/api/v1' : undefined })
-    const resp = await client.chat.completions.create({ model, messages: messages.map(m => ({ role: m.role as any, content: typeof m.content === 'string' ? m.content : '' })), max_tokens: 4096 })
-    const content = resp.choices[0]?.message?.content || ''
-    const toolMatch = content.match(/<tool>(.*?)<\/tool>/s)
-    if (toolMatch) throw new Error(toolMatch[1])
-    return content
-  }
-  throw new Error(`Provider ${provider} not supported for agent mode`)
-}
-
-function parseToolCall(json: string): { toolName: string; args: Record<string, unknown>; requiresApproval: boolean } {
-  const parsed = JSON.parse(json)
-  const tool = BUILT_IN_TOOLS.find(t => t.name === parsed.tool)
-  return { toolName: parsed.tool, args: parsed.args || {}, requiresApproval: tool?.requiresApproval ?? true }
 }

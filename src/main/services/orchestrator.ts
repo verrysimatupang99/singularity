@@ -1,8 +1,7 @@
 import type { SubAgentSpec, SubAgentResult, OrchestratorPlan, OrchestratorEvent } from '../providers/types.js'
 import { runAgentLoop } from './agentRunner.js'
-import { getApiKey } from './storage.js'
 import { BUILT_IN_TOOLS } from './agentTools.js'
-import OpenAI from 'openai'
+import { agentChat, AgentChatMessage } from './agentChatService.js'
 
 export interface OrchestratorOptions {
   orchestratorId: string
@@ -34,42 +33,43 @@ export class OrchestratorAgent {
   constructor(opts: OrchestratorOptions) { this.opts = opts }
 
   async plan(task: string): Promise<OrchestratorPlan> {
-    try {
-      const apiKey = getApiKey(this.opts.provider)
-      if (!apiKey) throw new Error(`No API key for ${this.opts.provider}`)
-
-      const toolsList = BUILT_IN_TOOLS.map(t => t.name).join(', ')
-      const prompt = `You are a task orchestrator. Break this task into parallel sub-tasks.
+    const toolsList = BUILT_IN_TOOLS.map(t => t.name).join(', ')
+    const messages: AgentChatMessage[] = [{
+      role: 'user',
+      content: `You are a task orchestrator. Break this task into parallel sub-tasks.
 Respond with ONLY valid JSON:
 {"subAgents":[{"id":"agent_0","role":"code_writer","task":"...","tools":["read_file","write_file"],"dependsOn":[],"priority":"normal"}]}
-Rules: max 5 sub-agents, each has ONE focused task, use dependsOn only when truly needed, tools must be subset of: ${toolsList}. Minimize dependencies.
+
+Rules:
+- Max 5 sub-agents
+- Each has ONE focused task
+- Use dependsOn only when truly needed
+- Tools must be subset of: ${toolsList}
+- Minimize dependencies
+
 Task: ${task}
-Workspace: ${this.opts.workspaceRoot}`
+Workspace: ${this.opts.workspaceRoot}`,
+    }]
 
-      const client = new OpenAI({ apiKey, baseURL: this.opts.provider === 'qwen' ? 'https://dashscope.aliyuncs.com/compatible-mode/v1' : this.opts.provider === 'openrouter' ? 'https://openrouter.ai/api/v1' : undefined })
-      const resp = await client.chat.completions.create({ model: this.opts.model, messages: [{ role: 'user', content: prompt }], max_tokens: 1024 })
-      const content = resp.choices[0]?.message?.content || ''
+    const { content } = await agentChat(this.opts.provider, this.opts.model, messages)
 
-      // Try to parse JSON from response (may be wrapped in markdown)
-      const jsonMatch = content.match(/\{[\s\S]*\}/)
-      const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { subAgents: [] }
+    // Try to parse JSON from response (may be wrapped in markdown)
+    const jsonMatch = content.match(/\{[\s\S]*\}/)
+    const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { subAgents: [] }
 
-      return {
-        orchestratorId: this.opts.orchestratorId,
-        task,
-        subAgents: (parsed.subAgents || []).map((s: any, i: number) => ({
-          id: s.id || `agent_${i}`,
-          role: s.role || 'general',
-          task: s.task || task,
-          tools: (s.tools || ['read_file']).filter((t: string) => BUILT_IN_TOOLS.some(bt => bt.name === t)),
-          dependsOn: s.dependsOn || [],
-          priority: s.priority || 'normal',
-        })),
-        strategy: 'dag',
-        estimatedTokens: parsed.subAgents?.length * 5000 || 15000,
-      }
-    } catch (err: unknown) {
-      throw new Error(`Orchestrator planning failed: ${err instanceof Error ? err.message : String(err)}`)
+    return {
+      orchestratorId: this.opts.orchestratorId,
+      task,
+      subAgents: (parsed.subAgents || []).map((s: any, i: number) => ({
+        id: s.id || `agent_${i}`,
+        role: s.role || 'general',
+        task: s.task || task,
+        tools: (s.tools || ['read_file']).filter((t: string) => BUILT_IN_TOOLS.some(bt => bt.name === t)),
+        dependsOn: s.dependsOn || [],
+        priority: s.priority || 'normal',
+      })),
+      strategy: 'dag',
+      estimatedTokens: parsed.subAgents?.length * 5000 || 15000,
     }
   }
 
@@ -86,7 +86,10 @@ Workspace: ${this.opts.workspaceRoot}`
         const result = results[i]
 
         if (result.status === 'rejected') {
-          const subResult: SubAgentResult = { id: spec.id, role: spec.role, status: 'error', output: '', filesModified: [], error: result.reason?.message || 'Unknown error', durationMs: 0 }
+          const subResult: SubAgentResult = {
+            id: spec.id, role: spec.role, status: 'error', output: '',
+            filesModified: [], error: result.reason?.message || 'Unknown error', durationMs: 0,
+          }
           this.results.set(spec.id, subResult)
           this.opts.onEvent({ orchestratorId: this.opts.orchestratorId, type: 'subagent_error', subAgentId: spec.id, result: subResult })
           failed.add(spec.id)
@@ -136,12 +139,9 @@ Workspace: ${this.opts.workspaceRoot}`
     })
 
     return {
-      id: spec.id,
-      role: spec.role,
+      id: spec.id, role: spec.role,
       status: error ? 'error' : 'done',
-      output,
-      filesModified: [...new Set(filesModified)],
-      error,
+      output, filesModified: [...new Set(filesModified)], error,
       durationMs: Date.now() - startTime,
     }
   }

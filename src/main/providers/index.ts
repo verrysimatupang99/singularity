@@ -4,10 +4,11 @@ import { OpenAIProvider } from './openai.js'
 import { OpenRouterProvider } from './openrouter.js'
 import { GeminiProvider } from './gemini.js'
 import { GitHubCopilotProvider } from './github-copilot.js'
+import { QwenProvider } from './qwen.js'
+import { OllamaProvider } from './ollama.js'
 import { GeminiCLIProvider } from './cli-gemini.js'
 import { ClaudeCLIProvider } from './cli-claude.js'
 import { QwenCLIProvider } from './cli-qwen.js'
-import { QwenProvider } from './qwen.js'
 import type { StorageService } from './types.js'
 
 /**
@@ -23,6 +24,7 @@ export function initProviders(_storage: unknown): void {
   registry.register(new GeminiProvider())
   registry.register(new GitHubCopilotProvider())
   registry.register(new QwenProvider())
+  registry.register(new OllamaProvider())
 
   // Register CLI providers (isAvailable() checks binary presence at call time)
   registry.register(GeminiCLIProvider)

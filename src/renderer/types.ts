@@ -180,7 +180,7 @@ export interface McpServerInfo {
 // Provider registry
 // ---------------------------------------------------------------------------
 
-export const PROVIDERS: { id: string; name: string; keyFormat: 'api-key' | 'oauth' | 'credential'; models: string[] }[] = [
+export const PROVIDERS: { id: string; name: string; keyFormat: 'api-key' | 'oauth' | 'credential' | 'local'; models: string[] }[] = [
   {
     id: 'openai',
     name: 'OpenAI',
@@ -220,6 +220,12 @@ export const PROVIDERS: { id: string; name: string; keyFormat: 'api-key' | 'oaut
     name: 'GitHub Copilot',
     keyFormat: 'oauth',
     models: ['gpt-4o-copilot', 'claude-sonnet-copilot'],
+  },
+  {
+    id: 'ollama',
+    name: 'Ollama (Local)',
+    keyFormat: 'local',
+    models: ['llama3.2', 'llama3.1:8b', 'qwen2.5-coder:7b', 'deepseek-coder-v2:16b', 'mistral:7b', 'phi4:14b'],
   },
 ]
 
@@ -356,10 +362,6 @@ declare global {
       pluginsUnload: (name: string) => Promise<{ ok: boolean }>
       pluginsFetchRegistry: (url?: string) => Promise<Array<{ name: string; displayName: string; version: string; description: string; author: string; downloadUrl: string; sha256: string; tools: string[]; homepage: string }>>
       pluginsInstallFromRegistry: (entry: unknown) => Promise<{ success: boolean; error?: string }>
-
-      // Computer Use (Phase 7 - TASK 4)
-      cuScreenshot: () => Promise<{ success: boolean; screenshot?: string; error?: string }>
-      cuAction: (action: { type: string; x?: number; y?: number; text?: string; key?: string }) => Promise<{ success: boolean; screenshot?: string; error?: string }>
 
       // Crash Reporter (Phase 8 - TASK 3)
       crashReport: (report: { message: string; stack?: string; componentStack?: string; context?: string }) => Promise<string>

@@ -164,6 +164,8 @@ export class PluginLoader {
     const { join } = await import('path')
     const { writeFileSync, mkdirSync, rmSync, existsSync, readdirSync } = await import('fs')
 
+    let extractedDir = ''
+
     try {
       // Download
       const resp = await fetch(entry.downloadUrl, { signal: AbortSignal.timeout(30000) })
@@ -196,11 +198,10 @@ export class PluginLoader {
           }
         }
       }
-      validateExtractionDir(extractedDir)
 
       // Find extracted directory (may have version suffix)
       const extractedContents = readdirSync(tempDir).filter(n => n !== 'plugin.zip')
-      const extractedDir = extractedContents.length === 1 ? join(tempDir, extractedContents[0]) : tempDir
+      extractedDir = extractedContents.length === 1 ? join(tempDir, extractedContents[0]) : tempDir
 
       // Validate extraction directory before installing
       validateExtractionDir(extractedDir)

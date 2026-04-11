@@ -1,3 +1,7 @@
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs'
+import { join } from 'path'
+import { homedir } from 'os'
+
 interface UsageRecord {
   sessionId: string
   providerId: string
@@ -30,8 +34,58 @@ function calcCost(model: string, promptTokens: number, completionTokens: number)
 
 class TokenTracker {
   private records: UsageRecord[] = []
+  private savePath: string
+  private saveTimer: ReturnType<typeof setTimeout> | null = null
 
-  record(rec: UsageRecord): void { this.records.push(rec) }
+  constructor() {
+    this.savePath = join(homedir(), '.config', 'singularity', 'token-usage.json')
+    this.load()
+  }
+
+  // -----------------------------------------------------------------------
+  // Persistence
+  // -----------------------------------------------------------------------
+
+  private load(): void {
+    try {
+      if (!existsSync(this.savePath)) return
+      const raw = readFileSync(this.savePath, 'utf8')
+      const data = JSON.parse(raw) as { records: UsageRecord[] }
+      this.records = data.records || []
+
+      // Prune records older than 90 days to keep file size manageable
+      const cutoff = Date.now() - 90 * 24 * 60 * 60 * 1000
+      this.records = this.records.filter(r => r.timestamp >= cutoff)
+      this.scheduleSave()
+    } catch (err) {
+      console.error('TokenTracker: failed to load persisted data', err)
+      this.records = []
+    }
+  }
+
+  private scheduleSave(): void {
+    if (this.saveTimer) clearTimeout(this.saveTimer)
+    this.saveTimer = setTimeout(() => this.persist(), 5000) // Debounce 5s
+  }
+
+  private persist(): void {
+    try {
+      const dir = join(homedir(), '.config', 'singularity')
+      if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+      writeFileSync(this.savePath, JSON.stringify({ records: this.records }, null, 2), 'utf8')
+    } catch (err) {
+      console.error('TokenTracker: failed to persist data', err)
+    }
+  }
+
+  // -----------------------------------------------------------------------
+  // Public API
+  // -----------------------------------------------------------------------
+
+  record(rec: UsageRecord): void {
+    this.records.push(rec)
+    this.scheduleSave()
+  }
 
   getBySession(sessionId: string): UsageRecord[] { return this.records.filter(r => r.sessionId === sessionId) }
   getByProvider(providerId: string): UsageRecord[] { return this.records.filter(r => r.providerId === providerId) }
@@ -60,7 +114,7 @@ class TokenTracker {
     return breakdown
   }
 
-  getRecentSessions(limit: number = 10): Array<{ sessionId: string; tokens: number; cost: number; lastUsed: number }> {
+  getRecentSessions(limit = 10): Array<{ sessionId: string; tokens: number; cost: number; lastUsed: number }> {
     const bySession: Record<string, { tokens: number; cost: number; lastUsed: number }> = {}
     for (const r of this.records) {
       if (!bySession[r.sessionId]) bySession[r.sessionId] = { tokens: 0, cost: 0, lastUsed: 0 }
@@ -71,7 +125,7 @@ class TokenTracker {
     return Object.entries(bySession).map(([sessionId, data]) => ({ sessionId, ...data })).sort((a, b) => b.lastUsed - a.lastUsed).slice(0, limit)
   }
 
-  clear(): void { this.records = [] }
+  clear(): void { this.records = []; this.scheduleSave() }
 }
 
 export const tokenTracker = new TokenTracker()

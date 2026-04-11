@@ -185,7 +185,7 @@ data: {"type":"message_stop"}
       ).rejects.toThrow(AuthError)
     })
 
-    it('should throw ProviderError on 529', async () => {
+    it('should throw ProviderError on 529', { timeout: 20000 }, async () => {
       mockFetchResponse(529, JSON.stringify({ error: { message: 'Overloaded' } }))
 
       await expect(

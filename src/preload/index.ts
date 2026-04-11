@@ -28,6 +28,12 @@ contextBridge.exposeInMainWorld('api', {
   // Providers
   providersList: () => ipcRenderer.invoke('providers:list'),
 
+  // Ollama (Local LLM)
+  ollamaStatus: () => ipcRenderer.invoke('ollama:status'),
+  ollamaSetBaseUrl: (url) => ipcRenderer.invoke('ollama:setBaseUrl', url),
+  ollamaRefreshModels: () => ipcRenderer.invoke('ollama:refreshModels'),
+  ollamaPullModel: (model) => ipcRenderer.invoke('ollama:pullModel', model),
+
   // Streaming
   onChatChunk: (callback) => {
     const listener = (_event, data) => callback(data)
@@ -38,6 +44,8 @@ contextBridge.exposeInMainWorld('api', {
   // File
   filePick: () => ipcRenderer.invoke('file:pick'),
   fileRead: (path) => ipcRenderer.invoke('file:read', path),
+  fsPickFolder: () => ipcRenderer.invoke('fs:pickFolder'),
+  fsReadDir: (path) => ipcRenderer.invoke('fs:readDir', path),
 
   // CLI
   cliDetect: () => ipcRenderer.invoke('cli:detect'),
@@ -77,6 +85,7 @@ contextBridge.exposeInMainWorld('api', {
   authQwenDevice: () => ipcRenderer.invoke('auth:qwen-device'),
   authQwenPoll: () => ipcRenderer.invoke('auth:qwen-poll'),
   authGoogleOAuth: (start, port) => ipcRenderer.invoke('auth:google-oauth', start, port),
+  authGoogleSetClientId: (clientId) => ipcRenderer.invoke('auth:google-set-client-id', clientId),
   authImportGemini: () => ipcRenderer.invoke('auth:import-gemini'),
   authValidateQwen: (apiKey) => ipcRenderer.invoke('auth:validate-qwen', apiKey),
   authOpenQwenConsole: () => ipcRenderer.invoke('auth:open-qwen-console'),
@@ -109,6 +118,11 @@ contextBridge.exposeInMainWorld('api', {
   // Agent
   agentExecuteTask: (opts) => ipcRenderer.invoke('agent:executeTask', opts),
   agentApprove: (opts) => ipcRenderer.invoke('agent:approve', opts),
+  onAgentEvent: (callback) => {
+    const listener = (_event, data) => callback(data)
+    ipcRenderer.on('agent:event', listener)
+    return () => ipcRenderer.removeListener('agent:event', listener)
+  },
 
   // Orchestrator
   orchestratorPlan: (opts) => ipcRenderer.invoke('orchestrator:plan', opts),
@@ -135,10 +149,6 @@ contextBridge.exposeInMainWorld('api', {
   pluginsUnload: (name) => ipcRenderer.invoke('plugins:unload', name),
   pluginsFetchRegistry: (url) => ipcRenderer.invoke('plugins:fetchRegistry', url),
   pluginsInstallFromRegistry: (entry) => ipcRenderer.invoke('plugins:installFromRegistry', entry),
-
-  // Computer Use
-  cuScreenshot: () => ipcRenderer.invoke('cu:screenshot'),
-  cuAction: (action) => ipcRenderer.invoke('cu:action', action),
 
   // Crash
   crashReport: (report) => ipcRenderer.invoke('crash:report', report),
@@ -182,6 +192,15 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.on('terminal:exit', listener)
     return () => ipcRenderer.removeListener('terminal:exit', listener)
   },
+
+  // Google Stitch MCP
+  stitchConnect: (config) => ipcRenderer.invoke('stitch:connect', config),
+  stitchDisconnect: () => ipcRenderer.invoke('stitch:disconnect'),
+  stitchStatus: () => ipcRenderer.invoke('stitch:status'),
+  stitchListScreens: () => ipcRenderer.invoke('stitch:listScreens'),
+  stitchGetScreen: (screenId) => ipcRenderer.invoke('stitch:getScreen', screenId),
+  stitchExportReact: (screenId) => ipcRenderer.invoke('stitch:exportReact', screenId),
+  stitchExportTailwind: (screenId) => ipcRenderer.invoke('stitch:exportTailwind', screenId),
 })
 
 contextBridge.exposeInMainWorld('platform', process.platform)

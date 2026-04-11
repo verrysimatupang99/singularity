@@ -26,7 +26,113 @@ const PROVIDER_CONFIG: Array<{
   { id: 'copilot', name: 'GitHub Copilot', color: '#24292e', keyLabel: 'OAuth Token', connectionMethod: 'oauth', icon: '🐙' },
   { id: 'gemini', name: 'Google Gemini', color: '#4285f4', keyLabel: 'API Key', connectionMethod: 'import', icon: '💎' },
   { id: 'qwen', name: 'Qwen', color: '#615ef0', keyLabel: 'API Key', connectionMethod: 'api-key', icon: '🔮' },
+  { id: 'ollama', name: 'Ollama (Local LLM)', color: '#000000', keyLabel: 'Local', connectionMethod: 'local', icon: '🦙' },
 ]
+
+// ---------------------------------------------------------------------------
+// Ollama Section Component
+// ---------------------------------------------------------------------------
+
+function OllamaSection({ onFeedback }: { onFeedback?: (msg: string) => void }) {
+  const [ollamaStatus, setOllamaStatus] = useState<{ available: boolean; baseUrl: string; models: Array<{ id: string; name: string }> | null; error?: string }>({ available: false, baseUrl: 'http://localhost:11434', models: null })
+  const [ollamaBaseUrl, setOllamaBaseUrl] = useState(ollamaStatus.baseUrl)
+  const [pullModelName, setPullModelName] = useState('')
+  const [pullStatus, setPullStatus] = useState<string | null>(null)
+  const [pulling, setPulling] = useState(false)
+  const checkInterval = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const checkStatus = useCallback(async () => {
+    try {
+      const status = await window.api.ollamaStatus()
+      setOllamaStatus(status)
+      setOllamaBaseUrl(status.baseUrl)
+    } catch { /* ollama not reachable */ }
+  }, [])
+
+  useEffect(() => {
+    checkStatus()
+    checkInterval.current = setInterval(checkStatus, 15000)
+    return () => { if (checkInterval.current) clearInterval(checkInterval.current) }
+  }, [checkStatus])
+
+  const handleSetBaseUrl = async () => {
+    try {
+      await window.api.ollamaSetBaseUrl(ollamaBaseUrl)
+      onFeedback?.('Ollama URL updated')
+      checkStatus()
+    } catch (err: any) { onFeedback?.('Failed: ' + (err?.message || err)) }
+  }
+
+  const handlePullModel = async () => {
+    if (!pullModelName.trim()) return
+    setPulling(true)
+    setPullStatus('Pulling...')
+    try {
+      const result = await window.api.ollamaPullModel(pullModelName.trim())
+      if (result.ok) { setPullStatus('Model pulled successfully'); setPullModelName(''); checkStatus() }
+      else { setPullStatus('Error: ' + result.error) }
+    } catch (err: any) { setPullStatus('Error: ' + (err?.message || err)) }
+    setPulling(false)
+    setTimeout(() => setPullStatus(null), 5000)
+  }
+
+  const handleRefreshModels = async () => { try { await window.api.ollamaRefreshModels(); checkStatus() } catch { /* ignore */ } }
+
+  return (
+    <div style={{ backgroundColor: '#161b22', border: '1px solid #30363d', borderRadius: 12, padding: 24, marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+        <span style={{ fontSize: 24 }}>🦙</span>
+        <div>
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#f0f6fc' }}>Ollama (Local LLM)</h3>
+          <p style={{ margin: '4px 0 0', fontSize: 12, color: '#8b949e' }}>
+            {ollamaStatus.available ? `Connected — ${ollamaStatus.models?.length || 0} models available` : 'Not connected — Install and start Ollama (ollama.com)'}
+          </p>
+        </div>
+        <div style={{ marginLeft: 'auto' }}>
+          <span style={{ display: 'inline-block', padding: '4px 10px', borderRadius: 12, fontSize: 11, fontWeight: 600, backgroundColor: ollamaStatus.available ? 'rgba(63,185,80,0.15)' : 'rgba(139,148,158,0.15)', color: ollamaStatus.available ? '#3fb950' : '#8b949e' }}>
+            {ollamaStatus.available ? 'Running' : 'Offline'}
+          </span>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        <input value={ollamaBaseUrl} onChange={e => setOllamaBaseUrl(e.target.value)} placeholder="http://localhost:11434" style={{ flex: 1, padding: '8px 12px', backgroundColor: '#0d1117', border: '1px solid #30363d', borderRadius: 6, color: '#c9d1d9', fontSize: 13, fontFamily: 'monospace' }} />
+        <button onClick={handleSetBaseUrl} style={{ padding: '8px 16px', backgroundColor: '#21262d', color: '#c9d1d9', border: '1px solid #30363d', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>Set URL</button>
+      </div>
+
+      {ollamaStatus.available && ollamaStatus.models && ollamaStatus.models.length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: '#8b949e' }}>Available Models</span>
+            <button onClick={handleRefreshModels} style={{ padding: '4px 8px', backgroundColor: 'transparent', color: '#58a6ff', border: '1px solid #30363d', borderRadius: 4, cursor: 'pointer', fontSize: 11 }}>↻ Refresh</button>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {ollamaStatus.models.map(m => (
+              <span key={m.id} style={{ padding: '4px 10px', backgroundColor: '#0d1117', border: '1px solid #30363d', borderRadius: 4, fontSize: 12, color: '#c9d1d9', fontFamily: 'monospace' }}>{m.name}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <input value={pullModelName} onChange={e => setPullModelName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !pulling) handlePullModel() }} placeholder="Pull model (e.g. llama3.2)" disabled={pulling} style={{ flex: 1, padding: '8px 12px', backgroundColor: '#0d1117', border: '1px solid #30363d', borderRadius: 6, color: '#c9d1d9', fontSize: 13, fontFamily: 'monospace' }} />
+        <button onClick={handlePullModel} disabled={pulling || !pullModelName.trim()} style={{ padding: '8px 16px', backgroundColor: pulling ? '#21262d' : '#238636', color: pulling ? '#8b949e' : '#fff', border: 'none', borderRadius: 6, cursor: pulling ? 'wait' : 'pointer', fontSize: 12 }}>
+          {pulling ? 'Pulling...' : 'Pull Model'}
+        </button>
+      </div>
+      {pullStatus && <div style={{ marginTop: 8, fontSize: 11, color: pulling ? '#d29922' : '#3fb950', fontFamily: 'monospace' }}>{pullStatus}</div>}
+
+      {!ollamaStatus.available && (
+        <div style={{ marginTop: 12, padding: 12, backgroundColor: 'rgba(210,153,34,0.1)', borderRadius: 6, fontSize: 12, color: '#d29922' }}>
+          <strong>How to install Ollama:</strong><br />
+          1. Download from <a href="https://ollama.com" target="_blank" rel="noreferrer" style={{ color: '#58a6ff' }}>ollama.com</a><br />
+          2. Run <code style={{ backgroundColor: '#0d1117', padding: '2px 6px', borderRadius: 3 }}>ollama serve</code><br />
+          3. Pull a model: <code style={{ backgroundColor: '#0d1117', padding: '2px 6px', borderRadius: 3 }}>ollama pull llama3.2</code>
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function SettingsView({
   settings,
@@ -1029,6 +1135,9 @@ export default function SettingsView({
           providerLabel="Qwen"
         />
 
+        {/* Ollama (Local LLM) */}
+        <OllamaSection onFeedback={(msg) => { setFeedback(msg); setTimeout(() => setFeedback(null), 3000) }} />
+
         {/* Google OAuth */}
         <div
           style={{
@@ -1882,6 +1991,128 @@ export default function SettingsView({
                 </option>
               ))}
             </select>
+          </div>
+        </div>
+      </Section>
+
+      {/* Google Stitch */}
+      <Section title="Google Stitch">
+        <div
+          style={{
+            backgroundColor: '#161b22',
+            border: '1px solid #30363d',
+            borderRadius: '10px',
+            padding: '16px 20px',
+            marginBottom: '12px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+            <div style={{
+              width: 10,
+              height: 10,
+              borderRadius: '50%',
+              backgroundColor: stitchStatus === 'connected' ? '#3fb950' : stitchStatus === 'error' ? '#f85149' : '#484f58',
+              boxShadow: stitchStatus === 'connected' ? '0 0 6px #3fb950' : 'none',
+            }} />
+            <div>
+              <div style={{ fontWeight: 600, fontSize: '0.95rem', color: '#72d6de' }}>
+                Google Stitch
+              </div>
+              <div style={{ fontSize: '0.8rem', color: '#484f58', marginTop: '2px' }}>
+                {stitchStatus === 'connected' ? 'Connected — Import designs directly' :
+                 stitchStatus === 'error' ? `Error: ${stitchError}` :
+                 'Connect to import designs from your Stitch projects'}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <input
+              type="text"
+              placeholder="Stitch API Key"
+              value={stitchApiKey}
+              onChange={(e) => setStitchApiKey(e.target.value)}
+              style={{
+                backgroundColor: '#0d1117',
+                border: '1px solid #30363d',
+                borderRadius: '6px',
+                color: '#c9d1d9',
+                padding: '8px 12px',
+                fontSize: '0.85rem',
+                outline: 'none',
+              }}
+            />
+            <input
+              type="text"
+              placeholder="Google Cloud Project ID"
+              value={stitchProjectId}
+              onChange={(e) => setStitchProjectId(e.target.value)}
+              style={{
+                backgroundColor: '#0d1117',
+                border: '1px solid #30363d',
+                borderRadius: '6px',
+                color: '#c9d1d9',
+                padding: '8px 12px',
+                fontSize: '0.85rem',
+                outline: 'none',
+              }}
+            />
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={handleStitchConnect}
+                disabled={stitchConnecting || !stitchApiKey || !stitchProjectId}
+                style={{
+                  backgroundColor: stitchConnecting ? '#21262d' : '#238636',
+                  border: '1px solid #2ea043',
+                  color: stitchConnecting ? '#484f58' : '#fff',
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  cursor: stitchConnecting || !stitchApiKey || !stitchProjectId ? 'not-allowed' : 'pointer',
+                  fontSize: '0.8rem',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {stitchConnecting ? 'Connecting...' : stitchStatus === 'connected' ? 'Reconnect' : 'Connect'}
+              </button>
+              {stitchStatus === 'connected' && (
+                <button
+                  onClick={handleStitchDisconnect}
+                  style={{
+                    backgroundColor: 'transparent',
+                    border: '1px solid #f85149',
+                    color: '#f85149',
+                    padding: '8px 16px',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '0.8rem',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Disconnect
+                </button>
+              )}
+              {stitchStatus === 'connected' && (
+                <button
+                  onClick={() => setShowStitchScreens(true)}
+                  style={{
+                    backgroundColor: 'rgba(114, 214, 222, 0.15)',
+                    border: '1px solid rgba(114, 214, 222, 0.3)',
+                    color: '#72d6de',
+                    padding: '8px 16px',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '0.8rem',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Browse Screens
+                </button>
+              )}
+            </div>
+
+            <div style={{ fontSize: '0.75rem', color: '#484f58', marginTop: '4px' }}>
+              Get your API key from stitch.withgoogle.com → Settings → API Keys
+            </div>
           </div>
         </div>
       </Section>

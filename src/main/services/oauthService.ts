@@ -73,6 +73,21 @@ const GOOGLE_SCOPES = [
   'profile',
 ]
 
+/**
+ * Google OAuth requires a user-provided Client ID.
+ * This cannot be hardcoded (unlike GitHub Copilot which uses a first-party client_id).
+ * Users must configure their own Google Cloud OAuth app.
+ */
+let _googleClientId: string | null = null
+
+export function setGoogleClientId(clientId: string): void {
+  _googleClientId = clientId
+}
+
+export function getGoogleClientId(): string | null {
+  return _googleClientId
+}
+
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
@@ -368,6 +383,14 @@ export async function googleOAuth(
   start: boolean,
   port = 9876,
 ): Promise<GoogleOAuthResult> {
+  const clientId = _googleClientId
+  if (!clientId) {
+    return {
+      status: 'error',
+      error: 'Google OAuth Client ID not configured. Set it in Settings > Google > OAuth Client ID, or use googleOAuthWithClientId().',
+    }
+  }
+
   if (!start) {
     if (googleOAuthServer) {
       googleOAuthServer.close()
@@ -387,7 +410,7 @@ export async function googleOAuth(
   const redirectUri = `http://127.0.0.1:${port}/callback`
 
   const authUrl = new URL(GOOGLE_AUTH_URL)
-  authUrl.searchParams.set('client_id', GOOGLE_CLIENT_ID)
+  authUrl.searchParams.set('client_id', clientId)
   authUrl.searchParams.set('redirect_uri', redirectUri)
   authUrl.searchParams.set('response_type', 'code')
   authUrl.searchParams.set('scope', GOOGLE_SCOPES.join(' '))
@@ -469,7 +492,7 @@ async function handleGoogleCallback(
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
         code,
-        client_id: GOOGLE_CLIENT_ID,
+        client_id: _googleClientId!,
         redirect_uri: googleOAuthState.redirectUri,
         grant_type: 'authorization_code',
         code_verifier: googleOAuthState.codeVerifier,

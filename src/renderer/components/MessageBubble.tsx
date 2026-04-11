@@ -1,17 +1,18 @@
+import { ChatMessage } from '../types'
 import { useState, useEffect, useCallback } from 'react'
 import { marked } from 'marked'
 
 interface MessageBubbleProps {
-  content: string
-  role: 'user' | 'assistant' | 'system'
-  timestamp: number
+  message: ChatMessage
   tokenUsage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number }
+  model?: string
 }
 
-export default function MessageBubble({ content, role, timestamp, tokenUsage }: MessageBubbleProps) {
+export default function MessageBubble({ message, tokenUsage }: MessageBubbleProps) {
   const [copiedCodeIndex, setCopiedCodeIndex] = useState<number | null>(null)
   const [copiedMessage, setCopiedMessage] = useState(false)
 
+  const { content, role, timestamp } = message
   const isUser = role === 'user'
   const isSystem = role === 'system'
 

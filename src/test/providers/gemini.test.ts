@@ -312,7 +312,7 @@ describe('GeminiProvider', () => {
       ).rejects.toThrow(AuthError)
     })
 
-    it('should throw ProviderError on 500', async () => {
+    it('should throw ProviderError on 500', { timeout: 20000 }, async () => {
       mockGeminiStreamResponse(500, JSON.stringify({ error: { message: 'Internal error' } }))
 
       await expect(
@@ -324,7 +324,7 @@ describe('GeminiProvider', () => {
       ).rejects.toThrow(ProviderError)
     })
 
-    it('should throw ProviderError on 503', async () => {
+    it('should throw ProviderError on 503', { timeout: 20000 }, async () => {
       mockGeminiStreamResponse(503, JSON.stringify({ error: { message: 'Service unavailable' } }))
 
       await expect(

@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { Check, X } from 'lucide-react'
 import { DiffEditor } from '@monaco-editor/react'
-import { countDiffLines } from '../../main/utils/diff.js'
+import { countDiffLines, applyUnifiedDiff } from '../../main/utils/diff.js'
 
 interface DiffViewerProps {
   filePath: string
@@ -17,6 +17,16 @@ export default function DiffViewer({ filePath, original, diff, onAccept, onRejec
   const [applying, setApplying] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const counts = useMemo(() => countDiffLines(diff), [diff])
+
+  // Compute the modified content by applying the diff to the original
+  const modified = useMemo(() => {
+    if (!diff || !original) return ''
+    try {
+      return applyUnifiedDiff(original, diff)
+    } catch {
+      return original // fallback if diff doesn't apply
+    }
+  }, [diff, original])
 
   const handleAccept = async () => {
     setApplying(true)
@@ -95,7 +105,7 @@ export default function DiffViewer({ filePath, original, diff, onAccept, onRejec
         <div style={{ flex: 1, padding: 8 }}>
           <DiffEditor
             original={original}
-            modified=""
+            modified={modified}
             language={language}
             theme={theme === 'light' ? 'vs' : 'vs-dark'}
             options={{
