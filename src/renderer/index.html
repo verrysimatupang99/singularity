@@ -4,81 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Singularity</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
-    <style>
-      :root {
-        /* Obsidian Layers — Glasswing Protocol */
-        --surface-lowest: #0d0e0f;
-        --surface-low: #1b1c1d;
-        --surface: #121314;
-        --surface-container: #1f2021;
-        --surface-container-high: #292a2b;
-        --surface-container-highest: #343536;
-        --primary: #72d6de;
-        --primary-container: #3fa8b0;
-        --primary-fixed: #8ff2fa;
-        --on-primary-fixed: #002022;
-        --on-surface: #e3e2e3;
-        --on-surface-variant: #bdc9ca;
-        --outline-variant: #3e494a;
-        --tertiary: #ffb68c;
-        --tertiary-container: #d78654;
-        --error: #ffb4ab;
-        --error-container: #93000a;
-      }
-
-      * { margin: 0; padding: 0; box-sizing: border-box; }
-      html, body, #root { height: 100%; width: 100%; overflow: hidden; }
-      body {
-        background: var(--surface-lowest);
-        color: var(--on-surface);
-        font-family: 'Inter', system-ui, sans-serif;
-        letter-spacing: -0.01em;
-      }
-
-      /* No-Line Rule: boundaries via color shifts, not strokes */
-      .panel-boundary { border: none; }
-
-      /* Scrollbar */
-      ::-webkit-scrollbar { width: 4px; height: 4px; }
-      ::-webkit-scrollbar-track { background: var(--surface-lowest); }
-      ::-webkit-scrollbar-thumb { background: var(--surface-container-high); border-radius: 2px; }
-      ::-webkit-scrollbar-thumb:hover { background: var(--surface-container-highest); }
-
-      /* Glassmorphism for transient elements */
-      .glass { background: rgba(41, 42, 43, 0.8); backdrop-filter: blur(20px); }
-
-      /* Lithium gradient for primary actions */
-      .lithium-gradient {
-        background: linear-gradient(135deg, var(--primary-container) 0%, var(--primary) 100%);
-      }
-
-      /* Typography */
-      .font-serif { font-family: 'Instrument Serif', serif; }
-      .font-sans { font-family: 'Inter', system-ui, sans-serif; }
-
-      /* Selection */
-      ::selection { background: rgba(114, 214, 222, 0.3); }
-
-      /* Animations */
-      @keyframes pulse-glow {
-        0%, 100% { box-shadow: 0 0 4px rgba(114, 214, 222, 0.4); }
-        50% { box-shadow: 0 0 12px rgba(114, 214, 222, 0.8); }
-      }
-      @keyframes cursor-blink {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0; }
-      }
-      .pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
-      .cursor-blink { animation: cursor-blink 1s step-end infinite; }
-    </style>
+    <!-- Typography: Instrument Serif (display) + Inter (body) + JetBrains Mono (code) -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <!-- Design System Tokens -->
+    <link rel="stylesheet" href="./styles/design-system.css" />
   </head>
-  <body style="background-color: #0d0e0f; color: #e3e2e3; margin: 0; font-family: Inter, system-ui, sans-serif;">
-    <!-- Loading fallback (outside root so React replaces it cleanly) -->
-    <div id="loading-fallback" style="position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px; background: #0d0e0f; z-index: 9999;">
-      <div style="font-size: 48px; opacity: 0.3;">∞</div>
-      <div style="color: #bdc9ca; font-size: 16px;">Loading Singularity...</div>
-    </div>
+  <body>
     <div id="root"></div>
     <script type="module" src="./main.tsx"></script>
   </body>

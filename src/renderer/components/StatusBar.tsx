@@ -1,23 +1,21 @@
 import { useState, useEffect, useCallback } from 'react'
+import { Wifi, WifiOff, Cpu } from 'lucide-react'
 
 interface StatusBarProps {
   provider: string
   model: string
   tokenCount?: number
   contextWindow?: number
-  ollamaAvailable?: boolean
 }
 
-export default function StatusBar({ provider, model, tokenCount, contextWindow, ollamaAvailable }: StatusBarProps) {
-  const [ollamaStatus, setOllamaStatus] = useState<{ available: boolean } | null>(null)
+export default function StatusBar({ provider, model, tokenCount, contextWindow }: StatusBarProps) {
+  const [ollamaAvailable, setOllamaAvailable] = useState(false)
 
   const checkOllama = useCallback(async () => {
     try {
       const status = await window.api.ollamaStatus()
-      setOllamaStatus({ available: status.available })
-    } catch {
-      setOllamaStatus({ available: false })
-    }
+      setOllamaAvailable(status.available)
+    } catch { setOllamaAvailable(false) }
   }, [])
 
   useEffect(() => {
@@ -26,39 +24,29 @@ export default function StatusBar({ provider, model, tokenCount, contextWindow, 
     return () => clearInterval(interval)
   }, [checkOllama])
 
-  const isOllama = provider === 'ollama'
-  const effectiveOllamaStatus = isOllama ? (ollamaStatus?.available ?? false) : (ollamaAvailable ?? false)
   const contextPct = contextWindow && tokenCount ? Math.min((tokenCount / contextWindow) * 100, 100) : 0
 
-  const baseStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    height: 24,
-    backgroundColor: 'var(--surface-container-lowest)',
-    borderTop: '1px solid rgba(62, 73, 74, 0.15)',
-    padding: '0 12px',
-    fontSize: 11,
-    color: 'var(--on-surface-variant)',
-    gap: 16,
-    fontFamily: 'monospace',
-  }
-
   const itemStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 4,
+    display: 'flex', alignItems: 'center', gap: 4,
+    fontSize: 11, color: 'var(--on-surface-variant)',
+    fontFamily: 'var(--font-mono)', opacity: 0.7,
   }
 
   const dotStyle = (color: string): React.CSSProperties => ({
-    width: 6,
-    height: 6,
-    borderRadius: '50%',
+    width: 6, height: 6, borderRadius: '50%',
     backgroundColor: color,
-    boxShadow: `0 0 4px ${color}66`,
   })
 
   return (
-    <div style={baseStyle}>
+    <div style={{
+      display: 'flex', alignItems: 'center', height: 24,
+      backgroundColor: 'var(--surface-lowest)',
+      borderTop: '1px solid var(--outline-variant)',
+      padding: '0 12px',
+      fontSize: 11, color: 'var(--on-surface-variant)',
+      fontFamily: 'var(--font-mono)',
+      gap: 16,
+    }}>
       {/* Provider */}
       <span style={itemStyle}>
         <span style={dotStyle('var(--primary)')} />
@@ -66,16 +54,16 @@ export default function StatusBar({ provider, model, tokenCount, contextWindow, 
       </span>
 
       {/* Model */}
-      <span style={{ opacity: 0.7 }}>
-        {model || '—'}
-      </span>
+      {model && <span style={{ ...itemStyle, opacity: 0.5 }}>{model}</span>}
 
       {/* Context */}
       {tokenCount && tokenCount > 0 && (
-        <span style={{ ...itemStyle, opacity: 0.7 }}>
+        <span style={itemStyle}>
           {tokenCount.toLocaleString()} tokens
           {contextWindow && (
-            <span style={{ color: contextPct >= 90 ? '#f85149' : contextPct >= 70 ? '#d29922' : '#3fb950' }}>
+            <span style={{
+              color: contextPct >= 90 ? 'var(--error)' : contextPct >= 70 ? 'var(--warning)' : 'var(--success)',
+            }}>
               ({Math.round(contextPct)}%)
             </span>
           )}
@@ -85,13 +73,11 @@ export default function StatusBar({ provider, model, tokenCount, contextWindow, 
       {/* Spacer */}
       <div style={{ flex: 1 }} />
 
-      {/* Ollama Status */}
-      {ollamaStatus !== null && (
-        <span style={itemStyle}>
-          <span style={dotStyle(effectiveOllamaStatus ? '#3fb950' : '#484f58')} />
-          Ollama {effectiveOllamaStatus ? 'running' : 'offline'}
-        </span>
-      )}
+      {/* Ollama */}
+      <span style={itemStyle}>
+        {ollamaAvailable ? <Wifi size={10} color="var(--success)" /> : <WifiOff size={10} color="var(--on-surface-variant)" />}
+        Ollama
+      </span>
     </div>
   )
 }

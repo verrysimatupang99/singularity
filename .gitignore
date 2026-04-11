@@ -32,3 +32,8 @@ coverage/
 # Config that contains secrets
 *.key
 *.pem
+
+# Reference repos (not tracked)
+opencode/
+zed/
+stitch/
