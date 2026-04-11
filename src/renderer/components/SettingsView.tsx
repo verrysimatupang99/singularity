@@ -79,55 +79,55 @@ function OllamaSection({ onFeedback }: { onFeedback?: (msg: string) => void }) {
   const handleRefreshModels = async () => { try { await window.api.ollamaRefreshModels(); checkStatus() } catch { /* ignore */ } }
 
   return (
-    <div style={{ backgroundColor: '#161b22', border: '1px solid #30363d', borderRadius: 12, padding: 24, marginBottom: 16 }}>
+    <div style={{ backgroundColor: 'var(--surface-container)', border: '1px solid #30363d', borderRadius: 12, padding: 24, marginBottom: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
         <span style={{ fontSize: 24 }}>🦙</span>
         <div>
-          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#f0f6fc' }}>Ollama (Local LLM)</h3>
-          <p style={{ margin: '4px 0 0', fontSize: 12, color: '#8b949e' }}>
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: 'var(--on-surface)' }}>Ollama (Local LLM)</h3>
+          <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--on-surface-variant)' }}>
             {ollamaStatus.available ? `Connected — ${ollamaStatus.models?.length || 0} models available` : 'Not connected — Install and start Ollama (ollama.com)'}
           </p>
         </div>
         <div style={{ marginLeft: 'auto' }}>
-          <span style={{ display: 'inline-block', padding: '4px 10px', borderRadius: 12, fontSize: 11, fontWeight: 600, backgroundColor: ollamaStatus.available ? 'rgba(63,185,80,0.15)' : 'rgba(139,148,158,0.15)', color: ollamaStatus.available ? '#3fb950' : '#8b949e' }}>
+          <span style={{ display: 'inline-block', padding: '4px 10px', borderRadius: 12, fontSize: 11, fontWeight: 600, backgroundColor: ollamaStatus.available ? 'rgba(63,185,80,0.15)' : 'rgba(139,148,158,0.15)', color: ollamaStatus.available ? 'var(--success)' : 'var(--on-surface-variant)' }}>
             {ollamaStatus.available ? 'Running' : 'Offline'}
           </span>
         </div>
       </div>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-        <input value={ollamaBaseUrl} onChange={e => setOllamaBaseUrl(e.target.value)} placeholder="http://localhost:11434" style={{ flex: 1, padding: '8px 12px', backgroundColor: '#0d1117', border: '1px solid #30363d', borderRadius: 6, color: '#c9d1d9', fontSize: 13, fontFamily: 'monospace' }} />
-        <button onClick={handleSetBaseUrl} style={{ padding: '8px 16px', backgroundColor: '#21262d', color: '#c9d1d9', border: '1px solid #30363d', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>Set URL</button>
+        <input value={ollamaBaseUrl} onChange={e => setOllamaBaseUrl(e.target.value)} placeholder="http://localhost:11434" style={{ flex: 1, padding: '8px 12px', backgroundColor: 'var(--surface-lowest)', border: '1px solid #30363d', borderRadius: 6, color: 'var(--on-surface)', fontSize: 13, fontFamily: 'monospace' }} />
+        <button onClick={handleSetBaseUrl} style={{ padding: '8px 16px', backgroundColor: 'var(--surface-container-high)', color: 'var(--on-surface)', border: '1px solid #30363d', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>Set URL</button>
       </div>
 
       {ollamaStatus.available && ollamaStatus.models && ollamaStatus.models.length > 0 && (
         <div style={{ marginBottom: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: '#8b949e' }}>Available Models</span>
-            <button onClick={handleRefreshModels} style={{ padding: '4px 8px', backgroundColor: 'transparent', color: '#58a6ff', border: '1px solid #30363d', borderRadius: 4, cursor: 'pointer', fontSize: 11 }}>↻ Refresh</button>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--on-surface-variant)' }}>Available Models</span>
+            <button onClick={handleRefreshModels} style={{ padding: '4px 8px', backgroundColor: 'transparent', color: 'var(--info)', border: '1px solid #30363d', borderRadius: 4, cursor: 'pointer', fontSize: 11 }}>↻ Refresh</button>
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {ollamaStatus.models.map(m => (
-              <span key={m.id} style={{ padding: '4px 10px', backgroundColor: '#0d1117', border: '1px solid #30363d', borderRadius: 4, fontSize: 12, color: '#c9d1d9', fontFamily: 'monospace' }}>{m.name}</span>
+              <span key={m.id} style={{ padding: '4px 10px', backgroundColor: 'var(--surface-lowest)', border: '1px solid #30363d', borderRadius: 4, fontSize: 12, color: 'var(--on-surface)', fontFamily: 'monospace' }}>{m.name}</span>
             ))}
           </div>
         </div>
       )}
 
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <input value={pullModelName} onChange={e => setPullModelName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !pulling) handlePullModel() }} placeholder="Pull model (e.g. llama3.2)" disabled={pulling} style={{ flex: 1, padding: '8px 12px', backgroundColor: '#0d1117', border: '1px solid #30363d', borderRadius: 6, color: '#c9d1d9', fontSize: 13, fontFamily: 'monospace' }} />
-        <button onClick={handlePullModel} disabled={pulling || !pullModelName.trim()} style={{ padding: '8px 16px', backgroundColor: pulling ? '#21262d' : '#238636', color: pulling ? '#8b949e' : '#fff', border: 'none', borderRadius: 6, cursor: pulling ? 'wait' : 'pointer', fontSize: 12 }}>
+        <input value={pullModelName} onChange={e => setPullModelName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !pulling) handlePullModel() }} placeholder="Pull model (e.g. llama3.2)" disabled={pulling} style={{ flex: 1, padding: '8px 12px', backgroundColor: 'var(--surface-lowest)', border: '1px solid #30363d', borderRadius: 6, color: 'var(--on-surface)', fontSize: 13, fontFamily: 'monospace' }} />
+        <button onClick={handlePullModel} disabled={pulling || !pullModelName.trim()} style={{ padding: '8px 16px', backgroundColor: pulling ? 'var(--surface-container-high)' : 'var(--success)', color: pulling ? 'var(--on-surface-variant)' : 'var(--on-surface)', border: 'none', borderRadius: 6, cursor: pulling ? 'wait' : 'pointer', fontSize: 12 }}>
           {pulling ? 'Pulling...' : 'Pull Model'}
         </button>
       </div>
-      {pullStatus && <div style={{ marginTop: 8, fontSize: 11, color: pulling ? '#d29922' : '#3fb950', fontFamily: 'monospace' }}>{pullStatus}</div>}
+      {pullStatus && <div style={{ marginTop: 8, fontSize: 11, color: pulling ? 'var(--warning)' : 'var(--success)', fontFamily: 'monospace' }}>{pullStatus}</div>}
 
       {!ollamaStatus.available && (
-        <div style={{ marginTop: 12, padding: 12, backgroundColor: 'rgba(210,153,34,0.1)', borderRadius: 6, fontSize: 12, color: '#d29922' }}>
+        <div style={{ marginTop: 12, padding: 12, backgroundColor: 'rgba(210,153,34,0.1)', borderRadius: 6, fontSize: 12, color: 'var(--warning)' }}>
           <strong>How to install Ollama:</strong><br />
-          1. Download from <a href="https://ollama.com" target="_blank" rel="noreferrer" style={{ color: '#58a6ff' }}>ollama.com</a><br />
-          2. Run <code style={{ backgroundColor: '#0d1117', padding: '2px 6px', borderRadius: 3 }}>ollama serve</code><br />
-          3. Pull a model: <code style={{ backgroundColor: '#0d1117', padding: '2px 6px', borderRadius: 3 }}>ollama pull llama3.2</code>
+          1. Download from <a href="https://ollama.com" target="_blank" rel="noreferrer" style={{ color: 'var(--info)' }}>ollama.com</a><br />
+          2. Run <code style={{ backgroundColor: 'var(--surface-lowest)', padding: '2px 6px', borderRadius: 3 }}>ollama serve</code><br />
+          3. Pull a model: <code style={{ backgroundColor: 'var(--surface-lowest)', padding: '2px 6px', borderRadius: 3 }}>ollama pull llama3.2</code>
         </div>
       )}
     </div>
@@ -752,10 +752,10 @@ export default function SettingsView({
 
   const statusColor = (status: string) => {
     switch (status) {
-      case 'running': return '#3fb950'
-      case 'starting': return '#d29922'
-      case 'error': return '#f85149'
-      default: return '#484f58'
+      case 'running': return 'var(--success)'
+      case 'starting': return 'var(--warning)'
+      case 'error': return 'var(--error)'
+      default: return 'var(--on-surface-variant)'
     }
   }
 
@@ -764,8 +764,8 @@ export default function SettingsView({
       style={{
         flex: 1,
         overflowY: 'auto',
-        backgroundColor: '#0d1117',
-        color: '#c9d1d9',
+        backgroundColor: 'var(--surface-lowest)',
+        color: 'var(--on-surface)',
         padding: '32px 40px',
       }}
     >
@@ -774,9 +774,9 @@ export default function SettingsView({
         <button
           onClick={onBack}
           style={{
-            backgroundColor: '#21262d',
+            backgroundColor: 'var(--surface-container-high)',
             border: '1px solid #30363d',
-            color: '#8b949e',
+            color: 'var(--on-surface-variant)',
             padding: '6px 12px',
             borderRadius: '6px',
             cursor: 'pointer',
@@ -797,7 +797,7 @@ export default function SettingsView({
             borderRadius: '8px',
             backgroundColor: 'rgba(210, 153, 34, 0.15)',
             border: '1px solid rgba(210, 153, 34, 0.3)',
-            color: '#d29922',
+            color: 'var(--warning)',
             fontSize: '0.85rem',
             display: 'flex',
             alignItems: 'flex-start',
@@ -826,7 +826,7 @@ export default function SettingsView({
               ? 'rgba(248, 81, 73, 0.15)'
               : 'rgba(63, 185, 80, 0.15)',
             border: `1px solid ${feedback.includes('Failed') || feedback.includes('Error') || feedback.includes('error') ? 'rgba(248, 81, 73, 0.3)' : 'rgba(63, 185, 80, 0.3)'}`,
-            color: feedback.includes('Failed') || feedback.includes('Error') || feedback.includes('error') ? '#f85149' : '#3fb950',
+            color: feedback.includes('Failed') || feedback.includes('Error') || feedback.includes('error') ? 'var(--error)' : 'var(--success)',
             fontSize: '0.85rem',
           }}
         >
@@ -887,7 +887,7 @@ export default function SettingsView({
         >
           <div
             style={{
-              backgroundColor: '#161b22',
+              backgroundColor: 'var(--surface-container)',
               border: '1px solid #30363d',
               borderRadius: '12px',
               padding: '24px',
@@ -896,20 +896,20 @@ export default function SettingsView({
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 style={{ margin: '0 0 20px', fontSize: 18, color: '#f0f6fc' }}>
+            <h2 style={{ margin: '0 0 20px', fontSize: 18, color: 'var(--on-surface)' }}>
               Connect GitHub Copilot
             </h2>
 
             <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: '0.85rem', color: '#8b949e', marginBottom: 4 }}>
+              <div style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)', marginBottom: 4 }}>
                 Go to:
               </div>
               <div
                 style={{
                   fontSize: '0.95rem',
-                  color: '#58a6ff',
+                  color: 'var(--info)',
                   fontFamily: 'monospace',
-                  backgroundColor: '#0d1117',
+                  backgroundColor: 'var(--surface-lowest)',
                   padding: '8px 12px',
                   borderRadius: 6,
                   border: '1px solid #30363d',
@@ -920,7 +920,7 @@ export default function SettingsView({
             </div>
 
             <div style={{ marginBottom: 20 }}>
-              <div style={{ fontSize: '0.85rem', color: '#8b949e', marginBottom: 4 }}>
+              <div style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)', marginBottom: 4 }}>
                 Enter code:
               </div>
               <div
@@ -930,7 +930,7 @@ export default function SettingsView({
                   fontFamily: 'monospace',
                   color: '#e94560',
                   letterSpacing: '0.15em',
-                  backgroundColor: '#0d1117',
+                  backgroundColor: 'var(--surface-lowest)',
                   padding: '12px 16px',
                   borderRadius: 6,
                   border: '1px solid #30363d',
@@ -941,13 +941,13 @@ export default function SettingsView({
               </div>
             </div>
 
-            <div style={{ fontSize: '0.8rem', color: '#484f58', marginBottom: 16, textAlign: 'center' }}>
+            <div style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', marginBottom: 16, textAlign: 'center' }}>
               A browser window should have opened automatically.
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 20 }}>
               {githubDevicePolling && (
-                <span style={{ fontSize: '0.85rem', color: '#d29922' }}>
+                <span style={{ fontSize: '0.85rem', color: 'var(--warning)' }}>
                   Waiting for authorization... \u27f3
                 </span>
               )}
@@ -959,7 +959,7 @@ export default function SettingsView({
                 style={{
                   padding: '8px 20px',
                   backgroundColor: 'transparent',
-                  color: '#8b949e',
+                  color: 'var(--on-surface-variant)',
                   border: '1px solid #30363d',
                   borderRadius: 6,
                   cursor: 'pointer',
@@ -989,7 +989,7 @@ export default function SettingsView({
         >
           <div
             style={{
-              backgroundColor: '#161b22',
+              backgroundColor: 'var(--surface-container)',
               border: '1px solid #30363d',
               borderRadius: '12px',
               padding: '24px',
@@ -1000,23 +1000,23 @@ export default function SettingsView({
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 style={{ margin: '0 0 16px', fontSize: 18, color: '#f0f6fc' }}>
+            <h2 style={{ margin: '0 0 16px', fontSize: 18, color: 'var(--on-surface)' }}>
               Setup Google OAuth
             </h2>
 
-            <div style={{ fontSize: '0.85rem', color: '#8b949e', marginBottom: 16 }}>
+            <div style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)', marginBottom: 16 }}>
               Follow these steps to get your Google Cloud OAuth Client ID:
             </div>
 
-            <ol style={{ fontSize: '0.85rem', color: '#c9d1d9', paddingLeft: 20, marginBottom: 20, lineHeight: 1.6 }}>
-              <li>Go to the <button onClick={handleGoogleOAuthConsoleOpen} style={{ background: 'none', border: 'none', color: '#58a6ff', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}>Google Cloud Console</button> and create a new project (or select existing).</li>
+            <ol style={{ fontSize: '0.85rem', color: 'var(--on-surface)', paddingLeft: 20, marginBottom: 20, lineHeight: 1.6 }}>
+              <li>Go to the <button onClick={handleGoogleOAuthConsoleOpen} style={{ background: 'none', border: 'none', color: 'var(--info)', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}>Google Cloud Console</button> and create a new project (or select existing).</li>
               <li>Enable the &quot;Google Cloud Resource Manager API&quot; in API &amp; Services &gt; Library.</li>
               <li>Go to APIs &amp; Services &gt; OAuth consent screen and configure it (External or Internal).</li>
-              <li>Go to Credentials &gt; Create Credentials &gt; OAuth client ID. Choose &quot;Web application&quot;, add <code style={{ backgroundColor: '#0d1117', padding: '2px 6px', borderRadius: 4 }}>http://127.0.0.1:9876/callback</code> as an Authorized redirect URI.</li>
+              <li>Go to Credentials &gt; Create Credentials &gt; OAuth client ID. Choose &quot;Web application&quot;, add <code style={{ backgroundColor: 'var(--surface-lowest)', padding: '2px 6px', borderRadius: 4 }}>http://127.0.0.1:9876/callback</code> as an Authorized redirect URI.</li>
             </ol>
 
             <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: '0.85rem', color: '#8b949e', display: 'block', marginBottom: 6 }}>
+              <label style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)', display: 'block', marginBottom: 6 }}>
                 OAuth Client ID
               </label>
               <input
@@ -1025,10 +1025,10 @@ export default function SettingsView({
                 value={googleOAuthClientId}
                 onChange={(e) => setGoogleOAuthClientId(e.target.value)}
                 style={{
-                  backgroundColor: '#0d1117',
+                  backgroundColor: 'var(--surface-lowest)',
                   border: '1px solid #30363d',
                   borderRadius: 6,
-                  color: '#c9d1d9',
+                  color: 'var(--on-surface)',
                   padding: '8px 12px',
                   fontSize: '0.85rem',
                   width: '100%',
@@ -1039,19 +1039,19 @@ export default function SettingsView({
             </div>
 
             {googleOAuthClientError && (
-              <div style={{ fontSize: '0.8rem', color: '#f85149', marginBottom: 12 }}>
+              <div style={{ fontSize: '0.8rem', color: 'var(--error)', marginBottom: 12 }}>
                 {googleOAuthClientError}
               </div>
             )}
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
               {googleOAuthClientStatus === 'pending' && (
-                <span style={{ fontSize: '0.85rem', color: '#d29922', marginRight: 'auto', alignSelf: 'center' }}>
+                <span style={{ fontSize: '0.85rem', color: 'var(--warning)', marginRight: 'auto', alignSelf: 'center' }}>
                   Authorizing...
                 </span>
               )}
               {googleOAuthClientStatus === 'complete' && (
-                <span style={{ fontSize: '0.85rem', color: '#3fb950', marginRight: 'auto', alignSelf: 'center' }}>
+                <span style={{ fontSize: '0.85rem', color: 'var(--success)', marginRight: 'auto', alignSelf: 'center' }}>
                   Authenticated!
                 </span>
               )}
@@ -1059,9 +1059,9 @@ export default function SettingsView({
                 <button
                   onClick={handleGoogleOAuthClientStart}
                   style={{
-                    backgroundColor: '#238636',
+                    backgroundColor: 'var(--success)',
                     border: '1px solid #2ea043',
-                    color: '#fff',
+                    color: 'var(--on-surface)',
                     padding: '8px 20px',
                     borderRadius: 6,
                     cursor: 'pointer',
@@ -1075,7 +1075,7 @@ export default function SettingsView({
                   onClick={handleGoogleOAuthClientStop}
                   style={{
                     backgroundColor: 'transparent',
-                    color: '#8b949e',
+                    color: 'var(--on-surface-variant)',
                     border: '1px solid #30363d',
                     padding: '8px 20px',
                     borderRadius: 6,
@@ -1090,7 +1090,7 @@ export default function SettingsView({
                 onClick={handleGoogleOAuthGuideClose}
                 style={{
                   backgroundColor: 'transparent',
-                  color: '#8b949e',
+                  color: 'var(--on-surface-variant)',
                   border: '1px solid #30363d',
                   padding: '8px 20px',
                   borderRadius: 6,
@@ -1107,7 +1107,7 @@ export default function SettingsView({
 
       {/* OAuth Connections */}
       <Section title="OAuth Connections">
-        <div style={{ fontSize: '0.85rem', color: '#8b949e', marginBottom: '16px' }}>
+        <div style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)', marginBottom: '16px' }}>
           Connect providers using OAuth device flow or import existing credentials.
         </div>
 
@@ -1141,7 +1141,7 @@ export default function SettingsView({
         {/* Google OAuth */}
         <div
           style={{
-            backgroundColor: '#161b22',
+            backgroundColor: 'var(--surface-container)',
             border: '1px solid #30363d',
             borderRadius: '10px',
             padding: '16px 20px',
@@ -1156,7 +1156,7 @@ export default function SettingsView({
               width: 10,
               height: 10,
               borderRadius: '50%',
-              backgroundColor: googleAuthStatus === 'complete' ? '#3fb950' : '#484f58',
+              backgroundColor: googleAuthStatus === 'complete' ? 'var(--success)' : 'var(--on-surface-variant)',
               boxShadow: googleAuthStatus === 'complete' ? '0 0 6px #3fb950' : 'none',
               flexShrink: 0,
             }}
@@ -1165,7 +1165,7 @@ export default function SettingsView({
             <div style={{ fontWeight: 600, fontSize: '0.95rem', color: '#4285f4' }}>
               Google (PKCE)
             </div>
-            <div style={{ fontSize: '0.8rem', color: '#484f58', marginTop: '2px' }}>
+            <div style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', marginTop: '2px' }}>
               {googleAuthStatus === 'complete'
                 ? 'Connected'
                 : googleAuthStatus === 'pending'
@@ -1182,9 +1182,9 @@ export default function SettingsView({
                 <button
                   onClick={handleGoogleAuthStart}
                   style={{
-                    backgroundColor: '#238636',
+                    backgroundColor: 'var(--success)',
                     border: '1px solid #2ea043',
-                    color: '#fff',
+                    color: 'var(--on-surface)',
                     padding: '8px 16px',
                     borderRadius: '6px',
                     cursor: 'pointer',
@@ -1198,13 +1198,13 @@ export default function SettingsView({
             }
             if (st === 'pending') {
               return (
-                <span style={{ fontSize: '0.8rem', color: '#d29922' }}>
+                <span style={{ fontSize: '0.8rem', color: 'var(--warning)' }}>
                   Connecting...
                 </span>
               )
             }
             return (
-              <span style={{ fontSize: '0.8rem', color: '#3fb950' }}>
+              <span style={{ fontSize: '0.8rem', color: 'var(--success)' }}>
                 \u2705 Connected
               </span>
             )
@@ -1214,7 +1214,7 @@ export default function SettingsView({
         {/* Gemini CLI Import */}
         <div
           style={{
-            backgroundColor: '#161b22',
+            backgroundColor: 'var(--surface-container)',
             border: '1px solid #30363d',
             borderRadius: '10px',
             padding: '16px 20px',
@@ -1229,7 +1229,7 @@ export default function SettingsView({
               width: 10,
               height: 10,
               borderRadius: '50%',
-              backgroundColor: geminiImportStatus === 'success' ? '#3fb950' : '#484f58',
+              backgroundColor: geminiImportStatus === 'success' ? 'var(--success)' : 'var(--on-surface-variant)',
               boxShadow: geminiImportStatus === 'success' ? '0 0 6px #3fb950' : 'none',
               flexShrink: 0,
             }}
@@ -1238,7 +1238,7 @@ export default function SettingsView({
             <div style={{ fontWeight: 600, fontSize: '0.95rem', color: '#4285f4' }}>
               Gemini CLI (Import)
             </div>
-            <div style={{ fontSize: '0.8rem', color: '#484f58', marginTop: '2px' }}>
+            <div style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', marginTop: '2px' }}>
               {geminiImportStatus === 'success'
                 ? 'Credentials imported'
                 : geminiImportStatus === 'error'
@@ -1249,9 +1249,9 @@ export default function SettingsView({
           <button
             onClick={handleGeminiImport}
             style={{
-              backgroundColor: '#238636',
+              backgroundColor: 'var(--success)',
               border: '1px solid #2ea043',
-              color: '#fff',
+              color: 'var(--on-surface)',
               padding: '8px 16px',
               borderRadius: '6px',
               cursor: 'pointer',
@@ -1267,15 +1267,15 @@ export default function SettingsView({
       {/* MCP Servers */}
       <Section title="MCP Servers">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <div style={{ fontSize: '0.85rem', color: '#8b949e' }}>
+          <div style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>
             Manage Model Context Protocol servers that provide tools to AI agents.
           </div>
           <button
             onClick={() => setShowAddMcp(!showAddMcp)}
             style={{
-              backgroundColor: showAddMcp ? '#30363d' : '#238636',
+              backgroundColor: showAddMcp ? 'var(--outline-variant)' : 'var(--success)',
               border: '1px solid #30363d',
-              color: '#c9d1d9',
+              color: 'var(--on-surface)',
               padding: '6px 14px',
               borderRadius: '6px',
               cursor: 'pointer',
@@ -1291,7 +1291,7 @@ export default function SettingsView({
         {showAddMcp && (
           <div
             style={{
-              backgroundColor: '#161b22',
+              backgroundColor: 'var(--surface-container)',
               border: '1px solid #30363d',
               borderRadius: '10px',
               padding: '20px',
@@ -1302,7 +1302,7 @@ export default function SettingsView({
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <div style={{ display: 'flex', gap: '10px' }}>
                 <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: '0.8rem', color: '#8b949e', display: 'block', marginBottom: '4px' }}>
+                  <label style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', display: 'block', marginBottom: '4px' }}>
                     Server Name
                   </label>
                   <input
@@ -1311,10 +1311,10 @@ export default function SettingsView({
                     value={newMcpName}
                     onChange={(e) => setNewMcpName(e.target.value)}
                     style={{
-                      backgroundColor: '#0d1117',
+                      backgroundColor: 'var(--surface-lowest)',
                       border: '1px solid #30363d',
                       borderRadius: '6px',
-                      color: '#c9d1d9',
+                      color: 'var(--on-surface)',
                       padding: '8px 10px',
                       fontSize: '0.85rem',
                       width: '100%',
@@ -1324,7 +1324,7 @@ export default function SettingsView({
                   />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: '0.8rem', color: '#8b949e', display: 'block', marginBottom: '4px' }}>
+                  <label style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', display: 'block', marginBottom: '4px' }}>
                     Command
                   </label>
                   <input
@@ -1333,10 +1333,10 @@ export default function SettingsView({
                     value={newMcpCommand}
                     onChange={(e) => setNewMcpCommand(e.target.value)}
                     style={{
-                      backgroundColor: '#0d1117',
+                      backgroundColor: 'var(--surface-lowest)',
                       border: '1px solid #30363d',
                       borderRadius: '6px',
-                      color: '#c9d1d9',
+                      color: 'var(--on-surface)',
                       padding: '8px 10px',
                       fontSize: '0.85rem',
                       width: '100%',
@@ -1347,7 +1347,7 @@ export default function SettingsView({
                 </div>
               </div>
               <div>
-                <label style={{ fontSize: '0.8rem', color: '#8b949e', display: 'block', marginBottom: '4px' }}>
+                <label style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', display: 'block', marginBottom: '4px' }}>
                   Arguments (space-separated)
                 </label>
                 <input
@@ -1356,10 +1356,10 @@ export default function SettingsView({
                   value={newMcpArgs}
                   onChange={(e) => setNewMcpArgs(e.target.value)}
                   style={{
-                    backgroundColor: '#0d1117',
+                    backgroundColor: 'var(--surface-lowest)',
                     border: '1px solid #30363d',
                     borderRadius: '6px',
-                    color: '#c9d1d9',
+                    color: 'var(--on-surface)',
                     padding: '8px 10px',
                     fontSize: '0.85rem',
                     width: '100%',
@@ -1369,7 +1369,7 @@ export default function SettingsView({
                 />
               </div>
               <div>
-                <label style={{ fontSize: '0.8rem', color: '#8b949e', display: 'block', marginBottom: '4px' }}>
+                <label style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', display: 'block', marginBottom: '4px' }}>
                   Timeout (ms)
                 </label>
                 <input
@@ -1378,10 +1378,10 @@ export default function SettingsView({
                   value={newMcpTimeout}
                   onChange={(e) => setNewMcpTimeout(e.target.value)}
                   style={{
-                    backgroundColor: '#0d1117',
+                    backgroundColor: 'var(--surface-lowest)',
                     border: '1px solid #30363d',
                     borderRadius: '6px',
-                    color: '#c9d1d9',
+                    color: 'var(--on-surface)',
                     padding: '8px 10px',
                     fontSize: '0.85rem',
                     width: '120px',
@@ -1392,9 +1392,9 @@ export default function SettingsView({
               <button
                 onClick={handleAddMcp}
                 style={{
-                  backgroundColor: '#238636',
+                  backgroundColor: 'var(--success)',
                   border: '1px solid #2ea043',
-                  color: '#fff',
+                  color: 'var(--on-surface)',
                   padding: '8px 16px',
                   borderRadius: '6px',
                   cursor: 'pointer',
@@ -1412,12 +1412,12 @@ export default function SettingsView({
         {mcpServers.length === 0 && !showAddMcp && (
           <div
             style={{
-              backgroundColor: '#161b22',
+              backgroundColor: 'var(--surface-container)',
               border: '1px solid #30363d',
               borderRadius: '10px',
               padding: '24px',
               textAlign: 'center',
-              color: '#484f58',
+              color: 'var(--on-surface-variant)',
               fontSize: '0.85rem',
             }}
           >
@@ -1433,7 +1433,7 @@ export default function SettingsView({
             <div
               key={server.name}
               style={{
-                backgroundColor: '#161b22',
+                backgroundColor: 'var(--surface-container)',
                 border: '1px solid #30363d',
                 borderRadius: '10px',
                 padding: '16px 20px',
@@ -1457,7 +1457,7 @@ export default function SettingsView({
                 {/* Name */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>{server.name}</div>
-                  <div style={{ fontSize: '0.75rem', color: '#484f58', fontFamily: 'monospace' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--on-surface-variant)', fontFamily: 'monospace' }}>
                     {server.config.command} {server.config.args.join(' ')}
                   </div>
                 </div>
@@ -1486,7 +1486,7 @@ export default function SettingsView({
                       style={{
                         backgroundColor: 'rgba(210, 153, 34, 0.15)',
                         border: '1px solid rgba(210, 153, 34, 0.3)',
-                        color: '#d29922',
+                        color: 'var(--warning)',
                         padding: '4px 10px',
                         borderRadius: '4px',
                         cursor: isLoading ? 'not-allowed' : 'pointer',
@@ -1502,10 +1502,10 @@ export default function SettingsView({
                       style={{
                         backgroundColor:
                           isLoading || server.status === 'error'
-                            ? '#21262d'
+                            ? 'var(--surface-container-high)'
                             : 'rgba(63, 185, 80, 0.15)',
-                        border: `1px solid ${isLoading || server.status === 'error' ? '#30363d' : 'rgba(63, 185, 80, 0.3)'}`,
-                        color: isLoading || server.status === 'error' ? '#484f58' : '#3fb950',
+                        border: `1px solid ${isLoading || server.status === 'error' ? 'var(--outline-variant)' : 'rgba(63, 185, 80, 0.3)'}`,
+                        color: isLoading || server.status === 'error' ? 'var(--on-surface-variant)' : 'var(--success)',
                         padding: '4px 10px',
                         borderRadius: '4px',
                         cursor: isLoading || server.status === 'error' ? 'not-allowed' : 'pointer',
@@ -1519,9 +1519,9 @@ export default function SettingsView({
                     <button
                       onClick={() => setExpandedMcpServer(isExpanded ? null : server.name)}
                       style={{
-                        backgroundColor: '#21262d',
+                        backgroundColor: 'var(--surface-container-high)',
                         border: '1px solid #30363d',
-                        color: '#8b949e',
+                        color: 'var(--on-surface-variant)',
                         padding: '4px 10px',
                         borderRadius: '4px',
                         cursor: 'pointer',
@@ -1537,7 +1537,7 @@ export default function SettingsView({
                     style={{
                       backgroundColor: 'rgba(248, 81, 73, 0.15)',
                       border: '1px solid rgba(248, 81, 73, 0.3)',
-                      color: '#f85149',
+                      color: 'var(--error)',
                       padding: '4px 10px',
                       borderRadius: '4px',
                       cursor: isLoading ? 'not-allowed' : 'pointer',
@@ -1555,7 +1555,7 @@ export default function SettingsView({
                   style={{
                     marginTop: '8px',
                     fontSize: '0.8rem',
-                    color: '#f85149',
+                    color: 'var(--error)',
                     fontFamily: 'monospace',
                   }}
                 >
@@ -1572,7 +1572,7 @@ export default function SettingsView({
                     borderTop: '1px solid #30363d',
                   }}
                 >
-                  <div style={{ fontSize: '0.8rem', color: '#8b949e', marginBottom: '8px', fontWeight: 600 }}>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', marginBottom: '8px', fontWeight: 600 }}>
                     Available Tools
                   </div>
                   {server.tools.map((tool) => (
@@ -1592,9 +1592,9 @@ export default function SettingsView({
           <button
             onClick={() => setPluginTab('installed')}
             style={{
-              backgroundColor: pluginTab === 'installed' ? '#238636' : '#21262d',
-              border: `1px solid ${pluginTab === 'installed' ? '#2ea043' : '#30363d'}`,
-              color: pluginTab === 'installed' ? '#fff' : '#8b949e',
+              backgroundColor: pluginTab === 'installed' ? 'var(--success)' : 'var(--surface-container-high)',
+              border: `1px solid ${pluginTab === 'installed' ? 'var(--success)' : 'var(--outline-variant)'}`,
+              color: pluginTab === 'installed' ? 'var(--on-surface)' : 'var(--on-surface-variant)',
               padding: '6px 14px',
               borderRadius: '6px',
               cursor: 'pointer',
@@ -1606,9 +1606,9 @@ export default function SettingsView({
           <button
             onClick={() => setPluginTab('marketplace')}
             style={{
-              backgroundColor: pluginTab === 'marketplace' ? '#238636' : '#21262d',
-              border: `1px solid ${pluginTab === 'marketplace' ? '#2ea043' : '#30363d'}`,
-              color: pluginTab === 'marketplace' ? '#fff' : '#8b949e',
+              backgroundColor: pluginTab === 'marketplace' ? 'var(--success)' : 'var(--surface-container-high)',
+              border: `1px solid ${pluginTab === 'marketplace' ? 'var(--success)' : 'var(--outline-variant)'}`,
+              color: pluginTab === 'marketplace' ? 'var(--on-surface)' : 'var(--on-surface-variant)',
               padding: '6px 14px',
               borderRadius: '6px',
               cursor: 'pointer',
@@ -1629,7 +1629,7 @@ export default function SettingsView({
                 ? 'rgba(248, 81, 73, 0.15)'
                 : 'rgba(63, 185, 80, 0.15)',
               border: `1px solid ${pluginFeedback.includes('Failed') || pluginFeedback.includes('error') || pluginFeedback.includes('Error') ? 'rgba(248, 81, 73, 0.3)' : 'rgba(63, 185, 80, 0.3)'}`,
-              color: pluginFeedback.includes('Failed') || pluginFeedback.includes('error') || pluginFeedback.includes('Error') ? '#f85149' : '#3fb950',
+              color: pluginFeedback.includes('Failed') || pluginFeedback.includes('error') || pluginFeedback.includes('Error') ? 'var(--error)' : 'var(--success)',
               fontSize: '0.85rem',
             }}
           >
@@ -1641,15 +1641,15 @@ export default function SettingsView({
         {pluginTab === 'installed' && (
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <div style={{ fontSize: '0.85rem', color: '#8b949e' }}>
+              <div style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>
                 Manage community plugins that extend agent capabilities with custom tools.
               </div>
               <button
                 onClick={handleInstallPlugin}
                 style={{
-                  backgroundColor: '#238636',
+                  backgroundColor: 'var(--success)',
                   border: '1px solid #2ea043',
-                  color: '#fff',
+                  color: 'var(--on-surface)',
                   padding: '6px 14px',
                   borderRadius: '6px',
                   cursor: 'pointer',
@@ -1664,12 +1664,12 @@ export default function SettingsView({
             {installedPlugins.length === 0 && (
               <div
                 style={{
-                  backgroundColor: '#161b22',
+                  backgroundColor: 'var(--surface-container)',
                   border: '1px solid #30363d',
                   borderRadius: '10px',
                   padding: '24px',
                   textAlign: 'center',
-                  color: '#484f58',
+                  color: 'var(--on-surface-variant)',
                   fontSize: '0.85rem',
                 }}
               >
@@ -1681,7 +1681,7 @@ export default function SettingsView({
               <div
                 key={plugin.name}
                 style={{
-                  backgroundColor: '#161b22',
+                  backgroundColor: 'var(--surface-container)',
                   border: '1px solid #30363d',
                   borderRadius: '10px',
                   padding: '16px 20px',
@@ -1696,14 +1696,14 @@ export default function SettingsView({
                     width: 10,
                     height: 10,
                     borderRadius: '50%',
-                    backgroundColor: '#3fb950',
+                    backgroundColor: 'var(--success)',
                     boxShadow: '0 0 6px #3fb950',
                     flexShrink: 0,
                   }}
                 />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: '0.95rem', color: '#58a6ff' }}>{plugin.name}</div>
-                  <div style={{ fontSize: '0.8rem', color: '#484f58', marginTop: '2px' }}>
+                  <div style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--info)' }}>{plugin.name}</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', marginTop: '2px' }}>
                     v{plugin.version} &middot; {plugin.toolCount} tool{plugin.toolCount !== 1 ? 's' : ''}
                   </div>
                 </div>
@@ -1712,7 +1712,7 @@ export default function SettingsView({
                   style={{
                     backgroundColor: 'rgba(248, 81, 73, 0.15)',
                     border: '1px solid rgba(248, 81, 73, 0.3)',
-                    color: '#f85149',
+                    color: 'var(--error)',
                     padding: '4px 10px',
                     borderRadius: '4px',
                     cursor: 'pointer',
@@ -1730,16 +1730,16 @@ export default function SettingsView({
         {pluginTab === 'marketplace' && (
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <div style={{ fontSize: '0.85rem', color: '#8b949e' }}>
+              <div style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>
                 Browse and install community plugins from the registry.
               </div>
               <button
                 onClick={handleRefreshRegistry}
                 disabled={registryLoading}
                 style={{
-                  backgroundColor: registryLoading ? '#21262d' : '#238636',
+                  backgroundColor: registryLoading ? 'var(--surface-container-high)' : 'var(--success)',
                   border: '1px solid #2ea043',
-                  color: registryLoading ? '#484f58' : '#fff',
+                  color: registryLoading ? 'var(--on-surface-variant)' : 'var(--on-surface)',
                   padding: '6px 14px',
                   borderRadius: '6px',
                   cursor: registryLoading ? 'not-allowed' : 'pointer',
@@ -1759,7 +1759,7 @@ export default function SettingsView({
                   borderRadius: '8px',
                   backgroundColor: 'rgba(248, 81, 73, 0.15)',
                   border: '1px solid rgba(248, 81, 73, 0.3)',
-                  color: '#f85149',
+                  color: 'var(--error)',
                   fontSize: '0.85rem',
                 }}
               >
@@ -1770,12 +1770,12 @@ export default function SettingsView({
             {registryPlugins.length === 0 && !registryLoading && !registryError && (
               <div
                 style={{
-                  backgroundColor: '#161b22',
+                  backgroundColor: 'var(--surface-container)',
                   border: '1px solid #30363d',
                   borderRadius: '10px',
                   padding: '24px',
                   textAlign: 'center',
-                  color: '#484f58',
+                  color: 'var(--on-surface-variant)',
                   fontSize: '0.85rem',
                 }}
               >
@@ -1787,7 +1787,7 @@ export default function SettingsView({
               <div
                 key={plugin.name}
                 style={{
-                  backgroundColor: '#161b22',
+                  backgroundColor: 'var(--surface-container)',
                   border: '1px solid #30363d',
                   borderRadius: '10px',
                   padding: '16px 20px',
@@ -1802,20 +1802,20 @@ export default function SettingsView({
                     width: 10,
                     height: 10,
                     borderRadius: '50%',
-                    backgroundColor: '#58a6ff',
+                    backgroundColor: 'var(--info)',
                     boxShadow: '0 0 6px #58a6ff',
                     flexShrink: 0,
                   }}
                 />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: '0.95rem', color: '#58a6ff' }}>{plugin.displayName || plugin.name}</div>
-                  <div style={{ fontSize: '0.8rem', color: '#8b949e', marginTop: '2px' }}>
+                  <div style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--info)' }}>{plugin.displayName || plugin.name}</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', marginTop: '2px' }}>
                     v{plugin.version} &middot; by {plugin.author}
                   </div>
-                  <div style={{ fontSize: '0.75rem', color: '#484f58', marginTop: '4px' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--on-surface-variant)', marginTop: '4px' }}>
                     {plugin.description}
                   </div>
-                  <div style={{ fontSize: '0.7rem', color: '#484f58', marginTop: '4px' }}>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--on-surface-variant)', marginTop: '4px' }}>
                     {plugin.tools.length} tool{plugin.tools.length !== 1 ? 's' : ''}: {plugin.tools.join(', ')}
                   </div>
                 </div>
@@ -1823,9 +1823,9 @@ export default function SettingsView({
                   onClick={() => handleInstallFromRegistry(plugin)}
                   disabled={installingPlugin === plugin.name}
                   style={{
-                    backgroundColor: installingPlugin === plugin.name ? '#21262d' : '#238636',
+                    backgroundColor: installingPlugin === plugin.name ? 'var(--surface-container-high)' : 'var(--success)',
                     border: '1px solid #2ea043',
-                    color: installingPlugin === plugin.name ? '#484f58' : '#fff',
+                    color: installingPlugin === plugin.name ? 'var(--on-surface-variant)' : 'var(--on-surface)',
                     padding: '6px 14px',
                     borderRadius: '6px',
                     cursor: installingPlugin === plugin.name ? 'not-allowed' : 'pointer',
@@ -1843,7 +1843,7 @@ export default function SettingsView({
                 style={{
                   textAlign: 'center',
                   padding: '24px',
-                  color: '#484f58',
+                  color: 'var(--on-surface-variant)',
                   fontSize: '0.85rem',
                 }}
               >
@@ -1854,14 +1854,14 @@ export default function SettingsView({
             {/* Custom registry URL */}
             <div
               style={{
-                backgroundColor: '#161b22',
+                backgroundColor: 'var(--surface-container)',
                 border: '1px solid #30363d',
                 borderRadius: '10px',
                 padding: '16px 20px',
                 marginTop: '16px',
               }}
             >
-              <div style={{ fontSize: '0.85rem', color: '#8b949e', marginBottom: '8px' }}>
+              <div style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)', marginBottom: '8px' }}>
                 Add Registry URL
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
@@ -1872,10 +1872,10 @@ export default function SettingsView({
                   onChange={(e) => setCustomRegistryUrl(e.target.value)}
                   style={{
                     flex: 1,
-                    backgroundColor: '#0d1117',
+                    backgroundColor: 'var(--surface-lowest)',
                     border: '1px solid #30363d',
                     borderRadius: '6px',
-                    color: '#c9d1d9',
+                    color: 'var(--on-surface)',
                     padding: '8px 12px',
                     fontSize: '0.85rem',
                     outline: 'none',
@@ -1885,9 +1885,9 @@ export default function SettingsView({
                   onClick={handleRefreshRegistry}
                   disabled={registryLoading || !customRegistryUrl}
                   style={{
-                    backgroundColor: customRegistryUrl && !registryLoading ? '#238636' : '#21262d',
+                    backgroundColor: customRegistryUrl && !registryLoading ? 'var(--success)' : 'var(--surface-container-high)',
                     border: '1px solid #2ea043',
-                    color: customRegistryUrl && !registryLoading ? '#fff' : '#484f58',
+                    color: customRegistryUrl && !registryLoading ? 'var(--on-surface)' : 'var(--on-surface-variant)',
                     padding: '8px 16px',
                     borderRadius: '6px',
                     cursor: customRegistryUrl && !registryLoading ? 'pointer' : 'not-allowed',
@@ -1907,7 +1907,7 @@ export default function SettingsView({
       <Section title="General">
         <div
           style={{
-            backgroundColor: '#161b22',
+            backgroundColor: 'var(--surface-container)',
             border: '1px solid #30363d',
             borderRadius: '10px',
             padding: '16px 20px',
@@ -1923,7 +1923,7 @@ export default function SettingsView({
           >
             <div>
               <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>Theme</div>
-              <div style={{ fontSize: '0.8rem', color: '#484f58', marginTop: '2px' }}>
+              <div style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', marginTop: '2px' }}>
                 Choose your preferred appearance
               </div>
             </div>
@@ -1933,9 +1933,9 @@ export default function SettingsView({
                   key={t}
                   onClick={() => handleThemeChange(t)}
                   style={{
-                    backgroundColor: theme === t ? '#238636' : '#21262d',
-                    border: `1px solid ${theme === t ? '#2ea043' : '#30363d'}`,
-                    color: '#c9d1d9',
+                    backgroundColor: theme === t ? 'var(--success)' : 'var(--surface-container-high)',
+                    border: `1px solid ${theme === t ? 'var(--success)' : 'var(--outline-variant)'}`,
+                    color: 'var(--on-surface)',
                     padding: '6px 14px',
                     borderRadius: '6px',
                     cursor: 'pointer',
@@ -1952,7 +1952,7 @@ export default function SettingsView({
 
         <div
           style={{
-            backgroundColor: '#161b22',
+            backgroundColor: 'var(--surface-container)',
             border: '1px solid #30363d',
             borderRadius: '10px',
             padding: '16px 20px',
@@ -1968,7 +1968,7 @@ export default function SettingsView({
           >
             <div>
               <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>Default Provider</div>
-              <div style={{ fontSize: '0.8rem', color: '#484f58', marginTop: '2px' }}>
+              <div style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', marginTop: '2px' }}>
                 Provider used for new sessions
               </div>
             </div>
@@ -1976,10 +1976,10 @@ export default function SettingsView({
               value={defaultProvider}
               onChange={(e) => handleDefaultProviderChange(e.target.value)}
               style={{
-                backgroundColor: '#0d1117',
+                backgroundColor: 'var(--surface-lowest)',
                 border: '1px solid #30363d',
                 borderRadius: '6px',
-                color: '#c9d1d9',
+                color: 'var(--on-surface)',
                 padding: '6px 10px',
                 fontSize: '0.85rem',
                 outline: 'none',
@@ -1999,7 +1999,7 @@ export default function SettingsView({
       <Section title="Google Stitch">
         <div
           style={{
-            backgroundColor: '#161b22',
+            backgroundColor: 'var(--surface-container)',
             border: '1px solid #30363d',
             borderRadius: '10px',
             padding: '16px 20px',
@@ -2011,14 +2011,14 @@ export default function SettingsView({
               width: 10,
               height: 10,
               borderRadius: '50%',
-              backgroundColor: stitchStatus === 'connected' ? '#3fb950' : stitchStatus === 'error' ? '#f85149' : '#484f58',
+              backgroundColor: stitchStatus === 'connected' ? 'var(--success)' : stitchStatus === 'error' ? 'var(--error)' : 'var(--on-surface-variant)',
               boxShadow: stitchStatus === 'connected' ? '0 0 6px #3fb950' : 'none',
             }} />
             <div>
               <div style={{ fontWeight: 600, fontSize: '0.95rem', color: '#72d6de' }}>
                 Google Stitch
               </div>
-              <div style={{ fontSize: '0.8rem', color: '#484f58', marginTop: '2px' }}>
+              <div style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', marginTop: '2px' }}>
                 {stitchStatus === 'connected' ? 'Connected — Import designs directly' :
                  stitchStatus === 'error' ? `Error: ${stitchError}` :
                  'Connect to import designs from your Stitch projects'}
@@ -2033,10 +2033,10 @@ export default function SettingsView({
               value={stitchApiKey}
               onChange={(e) => setStitchApiKey(e.target.value)}
               style={{
-                backgroundColor: '#0d1117',
+                backgroundColor: 'var(--surface-lowest)',
                 border: '1px solid #30363d',
                 borderRadius: '6px',
-                color: '#c9d1d9',
+                color: 'var(--on-surface)',
                 padding: '8px 12px',
                 fontSize: '0.85rem',
                 outline: 'none',
@@ -2048,10 +2048,10 @@ export default function SettingsView({
               value={stitchProjectId}
               onChange={(e) => setStitchProjectId(e.target.value)}
               style={{
-                backgroundColor: '#0d1117',
+                backgroundColor: 'var(--surface-lowest)',
                 border: '1px solid #30363d',
                 borderRadius: '6px',
-                color: '#c9d1d9',
+                color: 'var(--on-surface)',
                 padding: '8px 12px',
                 fontSize: '0.85rem',
                 outline: 'none',
@@ -2062,9 +2062,9 @@ export default function SettingsView({
                 onClick={handleStitchConnect}
                 disabled={stitchConnecting || !stitchApiKey || !stitchProjectId}
                 style={{
-                  backgroundColor: stitchConnecting ? '#21262d' : '#238636',
+                  backgroundColor: stitchConnecting ? 'var(--surface-container-high)' : 'var(--success)',
                   border: '1px solid #2ea043',
-                  color: stitchConnecting ? '#484f58' : '#fff',
+                  color: stitchConnecting ? 'var(--on-surface-variant)' : 'var(--on-surface)',
                   padding: '8px 16px',
                   borderRadius: '6px',
                   cursor: stitchConnecting || !stitchApiKey || !stitchProjectId ? 'not-allowed' : 'pointer',
@@ -2080,7 +2080,7 @@ export default function SettingsView({
                   style={{
                     backgroundColor: 'transparent',
                     border: '1px solid #f85149',
-                    color: '#f85149',
+                    color: 'var(--error)',
                     padding: '8px 16px',
                     borderRadius: '6px',
                     cursor: 'pointer',
@@ -2110,7 +2110,7 @@ export default function SettingsView({
               )}
             </div>
 
-            <div style={{ fontSize: '0.75rem', color: '#484f58', marginTop: '4px' }}>
+            <div style={{ fontSize: '0.75rem', color: 'var(--on-surface-variant)', marginTop: '4px' }}>
               Get your API key from stitch.withgoogle.com → Settings → API Keys
             </div>
           </div>
@@ -2121,7 +2121,7 @@ export default function SettingsView({
       <Section title="About">
         <div
           style={{
-            backgroundColor: '#161b22',
+            backgroundColor: 'var(--surface-container)',
             border: '1px solid #30363d',
             borderRadius: '10px',
             padding: '16px 20px',
@@ -2159,7 +2159,7 @@ function ToolCard({ tool }: { tool: McpTool }) {
   return (
     <div
       style={{
-        backgroundColor: '#0d1117',
+        backgroundColor: 'var(--surface-lowest)',
         border: '1px solid #21262d',
         borderRadius: '6px',
         padding: '10px 14px',
@@ -2169,26 +2169,26 @@ function ToolCard({ tool }: { tool: McpTool }) {
       onClick={() => setExpanded(!expanded)}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ fontWeight: 600, fontSize: '0.85rem', color: '#58a6ff' }}>
+        <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--info)' }}>
           {tool.name}
         </div>
-        <div style={{ fontSize: '0.7rem', color: '#484f58' }}>
+        <div style={{ fontSize: '0.7rem', color: 'var(--on-surface-variant)' }}>
           {expanded ? 'collapse' : 'expand'}
         </div>
       </div>
-      <div style={{ fontSize: '0.8rem', color: '#8b949e', marginTop: '2px' }}>
+      <div style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', marginTop: '2px' }}>
         {tool.description}
       </div>
       {expanded && (tool.inputSchema.properties as Record<string, { type?: string; description?: string }> | undefined) && (
-        <div style={{ marginTop: '8px', fontSize: '0.75rem', color: '#484f58', fontFamily: 'monospace' }}>
-          <div style={{ marginBottom: '4px', color: '#8b949e' }}>Parameters:</div>
+        <div style={{ marginTop: '8px', fontSize: '0.75rem', color: 'var(--on-surface-variant)', fontFamily: 'monospace' }}>
+          <div style={{ marginBottom: '4px', color: 'var(--on-surface-variant)' }}>Parameters:</div>
           {Object.entries(tool.inputSchema.properties as Record<string, { type?: string; description?: string }>).map(
             ([key, val]) => (
               <div key={key} style={{ paddingLeft: '12px', marginBottom: '2px' }}>
-                <span style={{ color: '#d2a8ff' }}>{key}</span>
-                <span style={{ color: '#484f58' }}>: {val.type || 'any'}</span>
+                <span style={{ color: 'var(--on-surface)' }}>{key}</span>
+                <span style={{ color: 'var(--on-surface-variant)' }}>: {val.type || 'any'}</span>
                 {val.description ? (
-                  <span style={{ color: '#6e7681' }}> // {String(val.description)}</span>
+                  <span style={{ color: 'var(--on-surface-variant)' }}> // {String(val.description)}</span>
                 ) : null}
               </div>
             )
@@ -2216,7 +2216,7 @@ function Section({
         style={{
           fontSize: '1.1rem',
           fontWeight: 600,
-          color: '#8b949e',
+          color: 'var(--on-surface-variant)',
           marginBottom: '16px',
           textTransform: 'uppercase',
           letterSpacing: '0.05em',
@@ -2241,10 +2241,10 @@ function InfoRow({ label, value }: { label: string; value: string }) {
         padding: '4px 0',
       }}
     >
-      <span style={{ color: '#484f58', fontSize: '0.85rem' }}>{label}</span>
+      <span style={{ color: 'var(--on-surface-variant)', fontSize: '0.85rem' }}>{label}</span>
       <span
         style={{
-          color: '#c9d1d9',
+          color: 'var(--on-surface)',
           fontSize: '0.85rem',
           fontFamily: 'monospace',
         }}
@@ -2274,7 +2274,7 @@ function OAuthCard({ providerName, color, status, error, userCode, verifyUri, on
   return (
     <div
       style={{
-        backgroundColor: '#161b22',
+        backgroundColor: 'var(--surface-container)',
         border: '1px solid #30363d',
         borderRadius: '10px',
         padding: '16px 20px',
@@ -2291,7 +2291,7 @@ function OAuthCard({ providerName, color, status, error, userCode, verifyUri, on
             width: 10,
             height: 10,
             borderRadius: '50%',
-            backgroundColor: status === 'complete' ? '#3fb950' : status === 'error' ? '#f85149' : '#484f58',
+            backgroundColor: status === 'complete' ? 'var(--success)' : status === 'error' ? 'var(--error)' : 'var(--on-surface-variant)',
             boxShadow: status === 'complete' ? '0 0 6px #3fb950' : 'none',
             flexShrink: 0,
           }}
@@ -2300,7 +2300,7 @@ function OAuthCard({ providerName, color, status, error, userCode, verifyUri, on
           <div style={{ fontWeight: 600, fontSize: '0.95rem', color }}>
             {providerName}
           </div>
-          <div style={{ fontSize: '0.8rem', color: '#484f58', marginTop: '2px' }}>
+          <div style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', marginTop: '2px' }}>
             {status === 'complete'
               ? 'Connected'
               : status === 'pending'
@@ -2314,9 +2314,9 @@ function OAuthCard({ providerName, color, status, error, userCode, verifyUri, on
           <button
             onClick={onConnect}
             style={{
-              backgroundColor: '#238636',
+              backgroundColor: 'var(--success)',
               border: '1px solid #2ea043',
-              color: '#fff',
+              color: 'var(--on-surface)',
               padding: '8px 16px',
               borderRadius: '6px',
               cursor: 'pointer',
@@ -2328,12 +2328,12 @@ function OAuthCard({ providerName, color, status, error, userCode, verifyUri, on
           </button>
         )}
         {status === 'pending' && (
-          <span style={{ fontSize: '0.8rem', color: '#d29922' }}>
+          <span style={{ fontSize: '0.8rem', color: 'var(--warning)' }}>
             Connecting...
           </span>
         )}
         {status === 'complete' && (
-          <span style={{ fontSize: '0.8rem', color: '#3fb950' }}>
+          <span style={{ fontSize: '0.8rem', color: 'var(--success)' }}>
             \u2705 Connected
           </span>
         )}
@@ -2344,14 +2344,14 @@ function OAuthCard({ providerName, color, status, error, userCode, verifyUri, on
         <div
           style={{
             width: '100%',
-            backgroundColor: '#0d1117',
+            backgroundColor: 'var(--surface-lowest)',
             border: '1px solid #30363d',
             borderRadius: '8px',
             padding: '12px 16px',
             marginTop: '8px',
           }}
         >
-          <div style={{ fontSize: '0.8rem', color: '#8b949e', marginBottom: '6px' }}>
+          <div style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', marginBottom: '6px' }}>
             Enter this code on {providerLabel}:
           </div>
           <div
@@ -2366,10 +2366,10 @@ function OAuthCard({ providerName, color, status, error, userCode, verifyUri, on
           >
             {userCode}
           </div>
-          <div style={{ fontSize: '0.75rem', color: '#484f58' }}>
-            Verification URL: <span style={{ color: '#58a6ff', fontFamily: 'monospace' }}>{verifyUri}</span>
+          <div style={{ fontSize: '0.75rem', color: 'var(--on-surface-variant)' }}>
+            Verification URL: <span style={{ color: 'var(--info)', fontFamily: 'monospace' }}>{verifyUri}</span>
           </div>
-          <div style={{ fontSize: '0.75rem', color: '#484f58', marginTop: '4px' }}>
+          <div style={{ fontSize: '0.75rem', color: 'var(--on-surface-variant)', marginTop: '4px' }}>
             A browser window should have opened. If not, visit the URL above and enter the code manually.
           </div>
         </div>
@@ -2434,7 +2434,7 @@ function ProviderCard({
   return (
     <div
       style={{
-        backgroundColor: '#161b22',
+        backgroundColor: 'var(--surface-container)',
         border: '1px solid #30363d',
         borderRadius: '10px',
         padding: '16px 20px',
@@ -2450,7 +2450,7 @@ function ProviderCard({
           width: 10,
           height: 10,
           borderRadius: '50%',
-          backgroundColor: isConnected ? '#3fb950' : '#484f58',
+          backgroundColor: isConnected ? 'var(--success)' : 'var(--on-surface-variant)',
           boxShadow: isConnected ? '0 0 6px #3fb950' : 'none',
           flexShrink: 0,
         }}
@@ -2461,7 +2461,7 @@ function ProviderCard({
         <div style={{ fontWeight: 600, fontSize: '0.95rem', color: config.color }}>
           {config.name}
         </div>
-        <div style={{ fontSize: '0.8rem', color: '#484f58', marginTop: '2px' }}>
+        <div style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', marginTop: '2px' }}>
           {isConnected ? 'Connected' : 'Not configured'}
         </div>
       </div>
@@ -2473,7 +2473,7 @@ function ProviderCard({
           style={{
             backgroundColor: 'rgba(248, 81, 73, 0.15)',
             border: '1px solid rgba(248, 81, 73, 0.3)',
-            color: '#f85149',
+            color: 'var(--error)',
             padding: '6px 12px',
             borderRadius: '6px',
             cursor: 'pointer',
@@ -2493,10 +2493,10 @@ function ProviderCard({
                 value={apiKeyInput}
                 onChange={(e) => onInputChange(e.target.value)}
                 style={{
-                  backgroundColor: '#0d1117',
+                  backgroundColor: 'var(--surface-lowest)',
                   border: '1px solid #30363d',
                   borderRadius: '6px',
-                  color: '#c9d1d9',
+                  color: 'var(--on-surface)',
                   padding: '6px 10px',
                   fontSize: '0.85rem',
                   width: '200px',
@@ -2507,9 +2507,9 @@ function ProviderCard({
                 onClick={onSaveKey}
                 disabled={!apiKeyInput || savingKey}
                 style={{
-                  backgroundColor: apiKeyInput && !savingKey ? '#238636' : '#21262d',
+                  backgroundColor: apiKeyInput && !savingKey ? 'var(--success)' : 'var(--surface-container-high)',
                   border: '1px solid #30363d',
-                  color: apiKeyInput && !savingKey ? '#fff' : '#484f58',
+                  color: apiKeyInput && !savingKey ? 'var(--on-surface)' : 'var(--on-surface-variant)',
                   padding: '6px 14px',
                   borderRadius: '6px',
                   cursor: apiKeyInput && !savingKey ? 'pointer' : 'not-allowed',
@@ -2525,9 +2525,9 @@ function ProviderCard({
                     onClick={onQwenValidate}
                     disabled={qwenValidating || !apiKeyInput}
                     style={{
-                      backgroundColor: qwenValidating ? '#21262d' : 'rgba(97, 94, 240, 0.15)',
+                      backgroundColor: qwenValidating ? 'var(--surface-container-high)' : 'rgba(97, 94, 240, 0.15)',
                       border: '1px solid rgba(97, 94, 240, 0.3)',
-                      color: qwenValidating ? '#484f58' : '#615ef0',
+                      color: qwenValidating ? 'var(--on-surface-variant)' : '#615ef0',
                       padding: '6px 14px',
                       borderRadius: '6px',
                       cursor: qwenValidating || !apiKeyInput ? 'not-allowed' : 'pointer',
@@ -2541,9 +2541,9 @@ function ProviderCard({
                     <button
                       onClick={onQwenOpenConsole}
                       style={{
-                        backgroundColor: '#21262d',
+                        backgroundColor: 'var(--surface-container-high)',
                         border: '1px solid #30363d',
-                        color: '#8b949e',
+                        color: 'var(--on-surface-variant)',
                         padding: '6px 14px',
                         borderRadius: '6px',
                         cursor: 'pointer',
@@ -2564,12 +2564,12 @@ function ProviderCard({
             <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '6px' }}>
               {qwenValidationResult.valid
                 ? (
-                  <span style={{ fontSize: '0.8rem', color: '#3fb950' }}>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--success)' }}>
                     Valid! ({qwenValidationResult.models?.length || 0} models available)
                   </span>
                 )
                 : (
-                  <span style={{ fontSize: '0.8rem', color: '#f85149' }}>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--error)' }}>
                     {qwenValidationResult.error}
                   </span>
                 )}
@@ -2580,12 +2580,12 @@ function ProviderCard({
             <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '6px' }}>
               {geminiValidationResult.valid
                 ? (
-                  <span style={{ fontSize: '0.8rem', color: '#3fb950' }}>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--success)' }}>
                     Valid! ({geminiValidationResult.models?.length || 0} models available)
                   </span>
                 )
                 : (
-                  <span style={{ fontSize: '0.8rem', color: '#f85149' }}>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--error)' }}>
                     {geminiValidationResult.error}
                   </span>
                 )}
@@ -2596,9 +2596,9 @@ function ProviderCard({
             <button
               onClick={onGithubConnect}
               style={{
-                backgroundColor: '#238636',
+                backgroundColor: 'var(--success)',
                 border: '1px solid #2ea043',
-                color: '#fff',
+                color: 'var(--on-surface)',
                 padding: '8px 16px',
                 borderRadius: '6px',
                 cursor: 'pointer',
@@ -2616,9 +2616,9 @@ function ProviderCard({
                 onClick={onGeminiValidate}
                 disabled={geminiValidating || !apiKeyInput}
                 style={{
-                  backgroundColor: geminiValidating ? '#21262d' : 'rgba(66, 133, 244, 0.15)',
+                  backgroundColor: geminiValidating ? 'var(--surface-container-high)' : 'rgba(66, 133, 244, 0.15)',
                   border: '1px solid rgba(66, 133, 244, 0.3)',
-                  color: geminiValidating ? '#484f58' : '#4285f4',
+                  color: geminiValidating ? 'var(--on-surface-variant)' : '#4285f4',
                   padding: '6px 14px',
                   borderRadius: '6px',
                   cursor: geminiValidating || !apiKeyInput ? 'not-allowed' : 'pointer',
@@ -2632,9 +2632,9 @@ function ProviderCard({
                 onClick={onGeminiImport}
                 disabled={geminiCredsImporting}
                 style={{
-                  backgroundColor: geminiCredsImporting ? '#21262d' : '#238636',
+                  backgroundColor: geminiCredsImporting ? 'var(--surface-container-high)' : 'var(--success)',
                   border: '1px solid #2ea043',
-                  color: geminiCredsImporting ? '#484f58' : '#fff',
+                  color: geminiCredsImporting ? 'var(--on-surface-variant)' : 'var(--on-surface)',
                   padding: '6px 12px',
                   borderRadius: '6px',
                   cursor: geminiCredsImporting ? 'not-allowed' : 'pointer',
@@ -2648,9 +2648,9 @@ function ProviderCard({
                 <button
                   onClick={onGeminiOAuthGuide}
                   style={{
-                    backgroundColor: '#21262d',
+                    backgroundColor: 'var(--surface-container-high)',
                     border: '1px solid #30363d',
-                    color: '#8b949e',
+                    color: 'var(--on-surface-variant)',
                     padding: '6px 14px',
                     borderRadius: '6px',
                     cursor: 'pointer',
@@ -2662,10 +2662,10 @@ function ProviderCard({
                 </button>
               )}
               {geminiCredsImportResult === 'success' && (
-                <span style={{ fontSize: '0.8rem', color: '#3fb950' }}>\u2705 Imported!</span>
+                <span style={{ fontSize: '0.8rem', color: 'var(--success)' }}>\u2705 Imported!</span>
               )}
               {geminiCredsImportResult === 'error' && (
-                <span style={{ fontSize: '0.75rem', color: '#f85149' }}>{geminiCredsImportError}</span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--error)' }}>{geminiCredsImportError}</span>
               )}
             </div>
           )}
