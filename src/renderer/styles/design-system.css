@@ -356,3 +356,90 @@
 .tonal-boundary {
   border: none;
 }
+
+/* ========================================================================
+   13. MARKDOWN CONTENT (Chat messages)
+   ======================================================================== */
+
+.markdown-content {
+  line-height: var(--leading-large);
+  color: var(--on-surface);
+}
+
+.markdown-content p { margin-bottom: 0.75em; }
+.markdown-content p:last-child { margin-bottom: 0; }
+
+.markdown-content h1, .markdown-content h2, .markdown-content h3 {
+  font-family: var(--font-sans);
+  font-weight: var(--font-semibold);
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  color: var(--on-surface);
+}
+
+.markdown-content h1 { font-size: 1.25em; }
+.markdown-content h2 { font-size: 1.1em; }
+.markdown-content h3 { font-size: 1em; }
+
+.markdown-content a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-decoration-color: rgba(114, 214, 222, 0.3);
+}
+
+.markdown-content a:hover {
+  text-decoration-color: var(--primary);
+}
+
+.markdown-content ul, .markdown-content ol {
+  margin-bottom: 0.75em;
+  padding-left: 1.5em;
+}
+
+.markdown-content ul { list-style: disc; }
+.markdown-content ol { list-style: decimal; }
+
+.markdown-content li { margin-bottom: 0.25em; }
+
+.markdown-content blockquote {
+  border-left: 3px solid var(--outline-variant);
+  padding-left: 12px;
+  color: var(--on-surface-variant);
+  opacity: 0.7;
+  margin: 0.75em 0;
+}
+
+.markdown-content hr {
+  border: none;
+  border-top: 1px solid var(--outline-variant);
+  margin: 1em 0;
+}
+
+/* Inline code */
+.markdown-content code:not(pre code) {
+  background: var(--surface-container);
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  color: var(--tertiary);
+}
+
+/* Tables */
+.markdown-content table {
+  border-collapse: collapse;
+  margin: 1em 0;
+  width: 100%;
+  font-size: 0.9em;
+}
+
+.markdown-content th, .markdown-content td {
+  padding: 6px 12px;
+  border: 1px solid var(--outline-variant);
+  text-align: left;
+}
+
+.markdown-content th {
+  background: var(--surface-container);
+  font-weight: var(--font-medium);
+}
