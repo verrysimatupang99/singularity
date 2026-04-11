@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { AppSettings, ProviderInfo, McpServerInfo, McpServerConfig, McpTool, GithubDeviceAuthResult } from '../types'
+import { SettingsSection, InfoRow, ToolCard, McpServerCard, ApiKeyInput } from './settings/SettingsComponents'
 
 interface SettingsViewProps {
   settings: AppSettings | null
@@ -835,7 +836,7 @@ export default function SettingsView({
       )}
 
       {/* Provider Connections (TASK 4a) */}
-      <Section title="Provider Connections">
+      <SettingsSection title="Provider Connections">
         {PROVIDER_CONFIG.map((config) => {
           const status = providerStatus[config.id] || 'disconnected'
           const hasKey = status === 'connected'
@@ -869,7 +870,7 @@ export default function SettingsView({
             />
           )
         })}
-      </Section>
+      </SettingsSection>
 
       {/* GitHub Device Flow Modal (TASK 4b) */}
       {showGithubDeviceFlow && (
@@ -1106,7 +1107,7 @@ export default function SettingsView({
       )}
 
       {/* OAuth Connections */}
-      <Section title="OAuth Connections">
+      <SettingsSection title="OAuth Connections">
         <div style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)', marginBottom: '16px' }}>
           Connect providers using OAuth device flow or import existing credentials.
         </div>
@@ -1262,10 +1263,10 @@ export default function SettingsView({
             Import
           </button>
         </div>
-      </Section>
+      </SettingsSection>
 
       {/* MCP Servers */}
-      <Section title="MCP Servers">
+      <SettingsSection title="MCP Servers">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <div style={{ fontSize: '0.85rem', color: 'var(--on-surface-variant)' }}>
             Manage Model Context Protocol servers that provide tools to AI agents.
@@ -1583,10 +1584,10 @@ export default function SettingsView({
             </div>
           )
         })}
-      </Section>
+      </SettingsSection>
 
       {/* Plugins */}
-      <Section title="Plugins">
+      <SettingsSection title="Plugins">
         {/* Tab bar */}
         <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
           <button
@@ -1901,10 +1902,10 @@ export default function SettingsView({
             </div>
           </>
         )}
-      </Section>
+      </SettingsSection>
 
       {/* General */}
-      <Section title="General">
+      <SettingsSection title="General">
         <div
           style={{
             backgroundColor: 'var(--surface-container)',
@@ -1993,10 +1994,10 @@ export default function SettingsView({
             </select>
           </div>
         </div>
-      </Section>
+      </SettingsSection>
 
       {/* Google Stitch */}
-      <Section title="Google Stitch">
+      <SettingsSection title="Google Stitch">
         <div
           style={{
             backgroundColor: 'var(--surface-container)',
@@ -2115,10 +2116,10 @@ export default function SettingsView({
             </div>
           </div>
         </div>
-      </Section>
+      </SettingsSection>
 
       {/* About */}
-      <Section title="About">
+      <SettingsSection title="About">
         <div
           style={{
             backgroundColor: 'var(--surface-container)',
@@ -2140,117 +2141,7 @@ export default function SettingsView({
             <InfoRow label="Engine" value="Electron + React + TypeScript" />
           </div>
         </div>
-      </Section>
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Tool card sub-component
-// ---------------------------------------------------------------------------
-
-function ToolCard({ tool }: { tool: McpTool }) {
-  const [expanded, setExpanded] = useState(false)
-
-  const schemaPreview = tool.inputSchema.properties
-    ? Object.keys(tool.inputSchema.properties).slice(0, 3).join(', ')
-    : ''
-
-  return (
-    <div
-      style={{
-        backgroundColor: 'var(--surface-lowest)',
-        border: '1px solid #21262d',
-        borderRadius: '6px',
-        padding: '10px 14px',
-        marginBottom: '6px',
-        cursor: 'pointer',
-      }}
-      onClick={() => setExpanded(!expanded)}
-    >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--info)' }}>
-          {tool.name}
-        </div>
-        <div style={{ fontSize: '0.7rem', color: 'var(--on-surface-variant)' }}>
-          {expanded ? 'collapse' : 'expand'}
-        </div>
-      </div>
-      <div style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', marginTop: '2px' }}>
-        {tool.description}
-      </div>
-      {expanded && (tool.inputSchema.properties as Record<string, { type?: string; description?: string }> | undefined) && (
-        <div style={{ marginTop: '8px', fontSize: '0.75rem', color: 'var(--on-surface-variant)', fontFamily: 'monospace' }}>
-          <div style={{ marginBottom: '4px', color: 'var(--on-surface-variant)' }}>Parameters:</div>
-          {Object.entries(tool.inputSchema.properties as Record<string, { type?: string; description?: string }>).map(
-            ([key, val]) => (
-              <div key={key} style={{ paddingLeft: '12px', marginBottom: '2px' }}>
-                <span style={{ color: 'var(--on-surface)' }}>{key}</span>
-                <span style={{ color: 'var(--on-surface-variant)' }}>: {val.type || 'any'}</span>
-                {val.description ? (
-                  <span style={{ color: 'var(--on-surface-variant)' }}> // {String(val.description)}</span>
-                ) : null}
-              </div>
-            )
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Section wrapper
-// ---------------------------------------------------------------------------
-
-function Section({
-  title,
-  children,
-}: {
-  title: string
-  children: React.ReactNode
-}) {
-  return (
-    <div style={{ marginBottom: '32px' }}>
-      <h2
-        style={{
-          fontSize: '1.1rem',
-          fontWeight: 600,
-          color: 'var(--on-surface-variant)',
-          marginBottom: '16px',
-          textTransform: 'uppercase',
-          letterSpacing: '0.05em',
-          borderBottom: '1px solid #21262d',
-          paddingBottom: '8px',
-        }}
-      >
-        {title}
-      </h2>
-      {children}
-    </div>
-  )
-}
-
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: '4px 0',
-      }}
-    >
-      <span style={{ color: 'var(--on-surface-variant)', fontSize: '0.85rem' }}>{label}</span>
-      <span
-        style={{
-          color: 'var(--on-surface)',
-          fontSize: '0.85rem',
-          fontFamily: 'monospace',
-        }}
-      >
-        {value}
-      </span>
+      </SettingsSection>
     </div>
   )
 }
